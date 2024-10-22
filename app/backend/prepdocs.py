@@ -3,10 +3,11 @@ import asyncio
 import logging
 import os
 from typing import Optional, Union
+from dotenv import load_dotenv
 
 from azure.core.credentials import AzureKeyCredential
 from azure.core.credentials_async import AsyncTokenCredential
-from azure.identity.aio import AzureDeveloperCliCredential, get_bearer_token_provider
+from azure.identity.aio import DefaultAzureCredential, AzureDeveloperCliCredential, get_bearer_token_provider
 
 from load_azd_env import load_azd_env
 from prepdocslib.blobmanager import BlobManager
@@ -298,7 +299,11 @@ if __name__ == "__main__":
         # to avoid seeing the noisy INFO level logs from the Azure SDKs
         logger.setLevel(logging.INFO)
 
-    load_azd_env()
+    try:
+        load_azd_env()
+    except Exception as e:
+        load_dotenv()
+    
 
     use_int_vectorization = os.getenv("USE_FEATURE_INT_VECTORIZATION", "").lower() == "true"
     use_gptvision = os.getenv("USE_GPT4V", "").lower() == "true"

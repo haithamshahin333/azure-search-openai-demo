@@ -1,0 +1,22 @@
+# Use an official Python runtime as a parent image
+FROM python:3.11
+
+# Install the Azure Developer CLI (azd)
+RUN curl -fsSL https://aka.ms/install-azd.sh | bash
+
+# Set the working directory in the container
+WORKDIR /usr/src/app
+
+# Copy the current directory contents into the container at /usr/src/app
+COPY ./app/backend/ .
+
+# Install any needed packages specified in requirements.txt
+# If you have a requirements.txt file, uncomment the following line
+RUN pip --no-cache-dir --quiet --disable-pip-version-check install -r requirements.txt
+
+# Make the startup script executable
+COPY startup.sh .
+RUN chmod +x startup.sh
+
+# Run the startup script when the container launches
+ENTRYPOINT ["./startup.sh"]
