@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from azure.core.credentials import AzureKeyCredential
 from azure.core.credentials_async import AsyncTokenCredential
-from azure.identity.aio import DefaultAzureCredential, AzureDeveloperCliCredential, get_bearer_token_provider
+from azure.identity.aio import AzureDeveloperCliCredential, get_bearer_token_provider
 
 from load_azd_env import load_azd_env
 from prepdocslib.blobmanager import BlobManager
