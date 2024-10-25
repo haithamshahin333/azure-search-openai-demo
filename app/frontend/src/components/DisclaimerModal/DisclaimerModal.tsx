@@ -12,6 +12,8 @@ const contentStyles = mergeStyleSets({
         backgroundColor: theme.palette.white,
         boxShadow: theme.effects.elevation8,
         borderRadius: '4px',
+        whiteSpace: 'normal', // Add this line
+        wordWrap: 'break-word', // Add this line
     },
     header: {
         display: 'flex',
@@ -23,12 +25,8 @@ const contentStyles = mergeStyleSets({
     },
     body: {
         marginBottom: '20px',
-    },
-    footer: {
-        display: 'flex',
-        justifyContent: 'flex-end',
-        borderTop: `1px solid ${theme.palette.neutralLight}`,
-        paddingTop: '10px',
+        whiteSpace: 'normal', // Add this line
+        wordWrap: 'break-word', // Add this line
     },
 });
 
