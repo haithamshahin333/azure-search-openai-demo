@@ -39,8 +39,10 @@ import { TokenClaimsDisplay } from "../../components/TokenClaimsDisplay";
 import { GPT4VSettings } from "../../components/GPT4VSettings";
 import { LoginContext } from "../../loginContext";
 import { LanguagePicker } from "../../i18n/LanguagePicker";
+import { DisclaimerModal } from "../../components/DisclaimerModal";
 
 const Chat = () => {
+    const [showModal, setShowModal] = useState(true);
     const [isConfigPanelOpen, setIsConfigPanelOpen] = useState(false);
     const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(false);
     const [promptTemplate, setPromptTemplate] = useState<string>("");
@@ -249,6 +251,16 @@ const Chat = () => {
         setIsStreaming(false);
     };
 
+    const handleCloseModal = () => {
+        setShowModal(false);
+    };
+
+    useEffect(() => {
+        // Show the modal when the component mounts
+        setShowModal(true);
+    }, []);
+
+
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "smooth" }), [isLoading]);
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "auto" }), [streamedAnswers]);
     useEffect(() => {
@@ -378,6 +390,7 @@ const Chat = () => {
                 </div>
             </div>
             <div className={styles.chatRoot} style={{ marginLeft: isHistoryPanelOpen ? "300px" : "0" }}>
+            <DisclaimerModal show={showModal} onClose={handleCloseModal} />
                 <div className={styles.chatContainer}>
                     {!lastQuestionRef.current ? (
                         <div className={styles.chatEmptyState}>
