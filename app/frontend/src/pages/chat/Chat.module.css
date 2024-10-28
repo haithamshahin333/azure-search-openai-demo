@@ -143,3 +143,10 @@
         min-width: 31.25rem;
     }
 }
+
+.imageContainer {
+    mix-blend-mode: multiply;
+    padding: 10px; /* Optional: Add padding if needed */
+    display: inline-block; /* Ensure the container fits the image */
+    border-radius: 4px; /* Optional: Add border radius if needed */
+}
