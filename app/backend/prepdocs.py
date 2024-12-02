@@ -28,6 +28,7 @@ from prepdocslib.listfilestrategy import (
     ADLSGen2ListFileStrategy,
     ListFileStrategy,
     LocalListFileStrategy,
+    BlobListFileStrategy,
 )
 from prepdocslib.parser import Parser
 from prepdocslib.pdfparser import DocumentAnalysisParser, LocalPdfParser
@@ -87,9 +88,26 @@ def setup_list_file_strategy(
     datalake_filesystem: Union[str, None],
     datalake_path: Union[str, None],
     datalake_key: Union[str, None],
+    storage_account_name: Union[str, None],
+    storage_container_name: Union[str, None],
+    storage_key: Union[str, None],
+    storage_blob_url: Union[str, None]
 ):
     list_file_strategy: ListFileStrategy
-    if datalake_storage_account:
+    
+    if storage_account_name:
+        if storage_container_name is None:
+            raise ValueError("Storage container is required when using Azure Blob Storage")
+        storage_creds: Union[AsyncTokenCredential, str] = azure_credential if storage_key is None else storage_key
+        logger.info("Using Blob Storage Account: %s", storage_account_name)
+        list_file_strategy = BlobListFileStrategy(
+            storage_account=storage_account_name,
+            storage_container=storage_container_name,
+            credential=storage_creds,
+            blob_url=storage_blob_url,
+        )
+    
+    elif datalake_storage_account:
         if datalake_filesystem is None or datalake_path is None:
             raise ValueError("DataLake file system and path are required when using Azure Data Lake Gen2")
         adls_gen2_creds: Union[AsyncTokenCredential, str] = azure_credential if datalake_key is None else datalake_key
@@ -246,7 +264,10 @@ if __name__ == "__main__":
         epilog="Example: prepdocs.py '.\\data\*' -v",
     )
     parser.add_argument("files", nargs="?", help="Files to be processed")
-
+    
+    parser.add_argument(
+        "--bloburl", help="Blob URL to be processed"
+    )
     parser.add_argument(
         "--category", help="Value for the category field in the search index for all sections indexed in this run"
     )
@@ -354,6 +375,10 @@ if __name__ == "__main__":
         datalake_filesystem=os.getenv("AZURE_ADLS_GEN2_FILESYSTEM"),
         datalake_path=os.getenv("AZURE_ADLS_GEN2_FILESYSTEM_PATH"),
         datalake_key=clean_key_if_exists(args.datalakekey),
+        storage_account_name=os.getenv("AZURE_STORAGE_ACCOUNT_KB_NAME"),
+        storage_container_name=os.getenv("AZURE_STORAGE_CONTAINER_KB_NAME"),
+        storage_key=clean_key_if_exists(args.storagekey),
+        storage_blob_url=args.bloburl
     )
 
     openai_host = os.environ["OPENAI_HOST"]
