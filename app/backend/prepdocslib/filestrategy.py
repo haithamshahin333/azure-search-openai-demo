@@ -17,7 +17,7 @@ async def parse_file(
     category: Optional[str] = None,
     image_embeddings: Optional[ImageEmbeddings] = None,
 ) -> List[Section]:
-    key = file.file_extension()
+    key = file.file_extension().lower()
     processor = file_processors.get(key)
     if processor is None:
         logger.info("Skipping '%s', no parser found.", file.filename())
@@ -88,6 +88,8 @@ class FileStrategy(Strategy):
                         if self.image_embeddings and blob_sas_uris:
                             blob_image_embeddings = await self.image_embeddings.create_embeddings(blob_sas_uris)
                         await search_manager.update_content(sections, blob_image_embeddings, url=file.url)
+                except Exception as e:
+                    logger.error("Error, file named %s failed: %s", file.filename(), str(e))
                 finally:
                     if file:
                         file.close()

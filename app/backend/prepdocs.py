@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 from typing import Optional, Union
+from dotenv import load_dotenv
 
 from azure.core.credentials import AzureKeyCredential
 from azure.core.credentials_async import AsyncTokenCredential
@@ -115,6 +116,7 @@ def setup_embeddings_service(
     openai_custom_url: Union[str, None],
     openai_deployment: Union[str, None],
     openai_dimensions: int,
+    openai_api_version: str,
     openai_key: Union[str, None],
     openai_org: Union[str, None],
     disable_vectors: bool = False,
@@ -134,6 +136,7 @@ def setup_embeddings_service(
             open_ai_deployment=openai_deployment,
             open_ai_model_name=openai_model_name,
             open_ai_dimensions=openai_dimensions,
+            open_ai_api_version=openai_api_version,
             credential=azure_open_ai_credential,
             disable_batch=disable_batch_vectors,
         )
@@ -298,7 +301,11 @@ if __name__ == "__main__":
         # to avoid seeing the noisy INFO level logs from the Azure SDKs
         logger.setLevel(logging.INFO)
 
-    load_azd_env()
+    try:
+        load_azd_env()
+    except Exception as e:
+        load_dotenv()
+    
 
     use_int_vectorization = os.getenv("USE_FEATURE_INT_VECTORIZATION", "").lower() == "true"
     use_gptvision = os.getenv("USE_GPT4V", "").lower() == "true"
@@ -366,6 +373,8 @@ if __name__ == "__main__":
         openai_service=os.getenv("AZURE_OPENAI_SERVICE"),
         openai_custom_url=os.getenv("AZURE_OPENAI_CUSTOM_URL"),
         openai_deployment=os.getenv("AZURE_OPENAI_EMB_DEPLOYMENT"),
+        # https://learn.microsoft.com/azure/ai-services/openai/api-version-deprecation#latest-ga-api-release
+        openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION") or "2024-06-01",
         openai_dimensions=openai_dimensions,
         openai_key=clean_key_if_exists(openai_key),
         openai_org=os.getenv("OPENAI_ORGANIZATION"),
