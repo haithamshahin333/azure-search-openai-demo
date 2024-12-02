@@ -6,6 +6,7 @@
     "login": "Login",
     "logout": "Logout",
     "clearChat": "Clear chat",
+    "disclaimer": "Disclaimer Message",
     "history": {
         "chatHistory": "Chat history",
         "openChatHistory": "Open chat history",
