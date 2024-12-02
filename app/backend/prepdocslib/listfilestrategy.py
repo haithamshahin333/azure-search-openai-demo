@@ -13,6 +13,8 @@ from azure.storage.filedatalake.aio import (
     DataLakeServiceClient,
 )
 
+from azure.storage.blob.aio import BlobServiceClient
+
 logger = logging.getLogger("scripts")
 
 
@@ -58,6 +60,47 @@ class ListFileStrategy(ABC):
     async def list_paths(self) -> AsyncGenerator[str, None]:
         if False:  # pragma: no cover - this is necessary for mypy to type check
             yield
+
+class BlobListFileStrategy(ListFileStrategy):
+    """
+    Concrete strategy for listing a single file that is located in a blob storage account
+    """
+
+    def __init__(
+        self,
+        blob_url: str,
+        storage_account: str,
+        storage_container: str,
+        credential: Union[AsyncTokenCredential, str],
+    ):
+        self.storage_account = storage_account
+        self.storage_container = storage_container
+        self.blob_url = blob_url
+        self.credential = credential
+
+    async def list_paths(self) -> AsyncGenerator[str, None]:
+        yield self.blob_url
+
+    async def list(self) -> AsyncGenerator[File, None]:
+        blob_service_client = BlobServiceClient(account_url=f"https://{self.storage_account}.blob.core.windows.net", credential=self.credential)
+        container_name = self.storage_container
+        blob_name = self.blob_url.split("/")[-1]
+
+        async with blob_service_client:  # Ensure BlobServiceClient is properly closed
+            async with blob_service_client.get_container_client(container_name) as container_client:  # Ensure ContainerClient is properly closed
+                temp_file_path = os.path.join(tempfile.gettempdir(), os.path.basename(blob_name))
+                try:
+                    async with container_client.get_blob_client(blob_name) as blob_client:  # Ensure BlobClient is properly closed
+                        with open(temp_file_path, "wb") as temp_file:
+                            downloader = await blob_client.download_blob()
+                            await downloader.readinto(temp_file)
+                    yield File(content=open(temp_file_path, "rb"), url=blob_client.url)
+                except Exception as blob_exception:
+                    logger.error(f"\tGot an error while reading {blob_name} -> {blob_exception} --> skipping file")
+                    try:
+                        os.remove(temp_file_path)
+                    except Exception as file_delete_exception:
+                        logger.error(f"\tGot an error while deleting {temp_file_path} -> {file_delete_exception}")
 
 
 class LocalListFileStrategy(ListFileStrategy):
