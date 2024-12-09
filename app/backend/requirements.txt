@@ -41,6 +41,7 @@ azure-core==1.30.2
     #   azure-search-documents
     #   azure-storage-blob
     #   azure-storage-file-datalake
+    #   azure-storage-queue
     #   microsoft-kiota-authentication-azure
     #   msrest
 azure-core-tracing-opentelemetry==1.0.0b11
@@ -62,6 +63,8 @@ azure-storage-blob==12.22.0
     #   -r requirements.in
     #   azure-storage-file-datalake
 azure-storage-file-datalake==12.16.0
+    # via -r requirements.in
+azure-storage-queue==12.12.0
     # via -r requirements.in
 beautifulsoup4==4.12.3
     # via -r requirements.in
@@ -89,6 +92,7 @@ cryptography==43.0.1
     #   -r requirements.in
     #   azure-identity
     #   azure-storage-blob
+    #   azure-storage-queue
     #   msal
     #   pyjwt
 deprecated==1.2.14
@@ -144,6 +148,7 @@ isodate==0.6.1
     #   azure-search-documents
     #   azure-storage-blob
     #   azure-storage-file-datalake
+    #   azure-storage-queue
     #   msrest
 itsdangerous==2.2.0
     # via
@@ -412,6 +417,7 @@ typing-extensions==4.12.2
     #   azure-search-documents
     #   azure-storage-blob
     #   azure-storage-file-datalake
+    #   azure-storage-queue
     #   openai
     #   opentelemetry-sdk
     #   pydantic
