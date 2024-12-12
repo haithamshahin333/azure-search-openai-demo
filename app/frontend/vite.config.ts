@@ -8,7 +8,7 @@ export default defineConfig({
         preserveSymlinks: true
     },
     build: {
-        outDir: "../backend/static",
+        outDir: "../../frontend",
         emptyOutDir: true,
         sourcemap: true,
         rollupOptions: {

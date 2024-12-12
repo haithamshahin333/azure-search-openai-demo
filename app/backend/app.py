@@ -100,6 +100,11 @@ mimetypes.add_type("application/javascript", ".js")
 mimetypes.add_type("text/css", ".css")
 
 
+# add a healthcheck endpoint
+@bp.route("/health")
+async def health():
+    return jsonify({"status": "healthy"})
+
 @bp.route("/")
 async def index():
     return await bp.send_static_file("index.html")
