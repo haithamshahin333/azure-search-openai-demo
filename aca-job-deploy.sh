@@ -180,9 +180,9 @@ az containerapp env create \
 echo "Deploying container app job..."
 # Deploy a container app job that is scaled by a storage queue
 az containerapp job create \
-    --name ingest \
+    --name ingest-job \
     --resource-group $RESOURCE_GROUP \
-    --image $ACR_NAME.azurecr.io/$IMAGE_NAME:1217 \
+    --image $ACR_NAME.azurecr.io/$IMAGE_NAME:latest \
     --registry-identity $MANAGED_IDENTITY_ID \
     --registry-server $ACR_NAME.azurecr.io \
     --environment $ENVIRONMENT \
