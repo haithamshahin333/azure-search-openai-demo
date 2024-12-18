@@ -17,7 +17,8 @@ export async function getHeaders(idToken: string | undefined): Promise<Record<st
 export async function configApi(idToken: string | undefined): Promise<Config> {
     const headers = await getHeaders(idToken);
     const response = await fetch(`${BACKEND_URI}/config`, {
-        method: "GET"
+        method: "GET",
+        headers: { ...headers, "Content-Type": "application/json" }
     });
 
     return (await response.json()) as Config;
