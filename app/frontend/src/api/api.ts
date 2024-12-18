@@ -14,7 +14,8 @@ export async function getHeaders(idToken: string | undefined): Promise<Record<st
     return {};
 }
 
-export async function configApi(): Promise<Config> {
+export async function configApi(idToken: string | undefined): Promise<Config> {
+    const headers = await getHeaders(idToken);
     const response = await fetch(`${BACKEND_URI}/config`, {
         method: "GET"
     });
