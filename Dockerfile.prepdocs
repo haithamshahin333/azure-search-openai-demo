@@ -8,11 +8,12 @@ RUN curl -fsSL https://aka.ms/install-azd.sh | bash
 WORKDIR /usr/src/app
 
 # Copy the current directory contents into the container at /usr/src/app
-COPY ./app/backend/ .
+# COPY ./app/backend/ .
+COPY . .
 
 # Install any needed packages specified in requirements.txt
 # If you have a requirements.txt file, uncomment the following line
-RUN pip --no-cache-dir --quiet --disable-pip-version-check install -r requirements.txt
+RUN pip --no-cache-dir --quiet --disable-pip-version-check install -r app/backend/requirements.txt
 
 # Make the startup script executable
 COPY startup.sh .

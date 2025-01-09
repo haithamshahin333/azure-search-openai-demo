@@ -1,19 +1,24 @@
 #!/bin/bash
 
-echo 'Running "prepdocs.py"'
+echo 'Running "Process Documents"'
 
-# Use the DATA_PATH environment variable, or default to './data/*' if not set
-DATA_PATH=${DATA_PATH:-'./data/*'}
-
-
-# sleep 1000000
-
-azd auth login --use-device-code
+echo "Logging in to Azure"
+echo "CLOUD_ENVIRONMENT: $CLOUD_ENVIRONMENT"
+if [ -z "$CLOUD_ENVIRONMENT" ] || [ "$CLOUD_ENVIRONMENT" == "local" ]; then
+  echo "Local Cloud Environment: Logging in to Azure with device code"
+  azd auth login --use-device-code
+else
+  echo "Azure Cloud Environment: Logging in to Azure with identity"
+  azd auth login --managed-identity --client-id $AZURE_CLIENT_ID
+fi
 
 additionalArgs=""
 if [ $# -gt 0 ]; then
   additionalArgs="$@"
 fi
 
+
 # Run the prepdocs.py script with the data path and additional arguments
-exec python prepdocs.py "$DATA_PATH" --verbose $additionalArgs
+# echo 'Running "prepdocs.py" with additional arguments: ' $additionalArgs
+# exec python app/backend/prepdocs.py --verbose $additionalArgs
+exec python app/backend/process_documents.py

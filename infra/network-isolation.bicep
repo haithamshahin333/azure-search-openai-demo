@@ -67,11 +67,23 @@ module vnet './core/networking/vnet.bicep' = if (usePrivateEndpoint) {
           addressPrefix: '10.0.4.0/24'
         }
       }
+      {
+        name: 'apim-subnet'
+        properties: {
+          addressPrefix: '10.0.5.0/24'
+        }
+      }
+      {
+        name: 'aca-subnet'
+        properties: {
+          addressPrefix: '10.0.6.0/24'
+        }
+      }
     ]
   }
 }
 
-
 output appSubnetId string = usePrivateEndpoint ? vnet.outputs.vnetSubnets[2].id : ''
 output backendSubnetId string = usePrivateEndpoint ? vnet.outputs.vnetSubnets[0].id : ''
 output vnetName string = usePrivateEndpoint ? vnet.outputs.name : ''
+

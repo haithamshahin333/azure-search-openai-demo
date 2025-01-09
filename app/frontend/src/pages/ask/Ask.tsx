@@ -74,7 +74,9 @@ export function Component(): JSX.Element {
     const { loggedIn } = useContext(LoginContext);
 
     const getConfig = async () => {
-        configApi().then(config => {
+        const token = client ? await getToken(client) : undefined;
+
+        configApi(token).then(config => {
             setShowGPT4VOptions(config.showGPT4VOptions);
             setUseSemanticRanker(config.showSemanticRankerOption);
             setShowSemanticRankerOption(config.showSemanticRankerOption);

@@ -20,8 +20,9 @@ async def parse_file(
     key = file.file_extension().lower()
     processor = file_processors.get(key)
     if processor is None:
-        logger.info("Skipping '%s', no parser found.", file.filename())
-        return []
+        error_message = f"Skipping '{file.filename()}', no parser found for file extension '{key}'."
+        logger.error(error_message)
+        raise ValueError(error_message)
     logger.info("Ingesting '%s'", file.filename())
     pages = [page async for page in processor.parser.parse(content=file.content)]
     logger.info("Splitting '%s' into sections", file.filename())
@@ -90,6 +91,7 @@ class FileStrategy(Strategy):
                         await search_manager.update_content(sections, blob_image_embeddings, url=file.url)
                 except Exception as e:
                     logger.error("Error, file named %s failed: %s", file.filename(), str(e))
+                    raise
                 finally:
                     if file:
                         file.close()

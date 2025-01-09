@@ -101,6 +101,7 @@ class BlobListFileStrategy(ListFileStrategy):
                         os.remove(temp_file_path)
                     except Exception as file_delete_exception:
                         logger.error(f"\tGot an error while deleting {temp_file_path} -> {file_delete_exception}")
+                    raise
 
 
 class LocalListFileStrategy(ListFileStrategy):

@@ -1,11 +1,11 @@
-const BACKEND_URI = "";
+const BACKEND_URI = "https://APIM-URL/api";
 
 import { ChatAppResponse, ChatAppResponseOrError, ChatAppRequest, Config, SimpleAPIResponse, HistoryListApiResponse, HistroyApiResponse } from "./models";
 import { useLogin, getToken, isUsingAppServicesLogin } from "../authConfig";
 
 export async function getHeaders(idToken: string | undefined): Promise<Record<string, string>> {
     // If using login and not using app services, add the id token of the logged in account as the authorization
-    if (useLogin && !isUsingAppServicesLogin) {
+    if (useLogin) {
         if (idToken) {
             return { Authorization: `Bearer ${idToken}` };
         }
@@ -14,9 +14,11 @@ export async function getHeaders(idToken: string | undefined): Promise<Record<st
     return {};
 }
 
-export async function configApi(): Promise<Config> {
+export async function configApi(idToken: string | undefined): Promise<Config> {
+    const headers = await getHeaders(idToken);
     const response = await fetch(`${BACKEND_URI}/config`, {
-        method: "GET"
+        method: "GET",
+        headers: { ...headers, "Content-Type": "application/json" }
     });
 
     return (await response.json()) as Config;

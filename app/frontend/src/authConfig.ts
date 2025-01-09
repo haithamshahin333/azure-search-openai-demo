@@ -1,10 +1,11 @@
 // Refactored from https://github.com/Azure-Samples/ms-identity-javascript-react-tutorial/blob/main/1-Authentication/1-sign-in/SPA/src/authConfig.js
 
 import { IPublicClientApplication } from "@azure/msal-browser";
-
+const BACKEND_URI = "https://APIM/api";
 const appServicesAuthTokenUrl = ".auth/me";
 const appServicesAuthTokenRefreshUrl = ".auth/refresh";
 const appServicesAuthLogoutUrl = ".auth/logout?post_logout_redirect_uri=/";
+import localAuthConfig from './localAuthConfig.json';
 
 interface AppServicesToken {
     id_token: string;
@@ -54,7 +55,13 @@ interface AuthSetup {
 
 // Fetch the auth setup JSON data from the API if not already cached
 async function fetchAuthSetup(): Promise<AuthSetup> {
-    const response = await fetch("/auth_setup");
+    try {
+        return localAuthConfig as AuthSetup;
+    } catch (error) {
+        console.warn('Failed to read local config file, falling back to backend API call:', error);
+    }
+
+    const response = await fetch(`${BACKEND_URI}/auth_setup`);
     if (!response.ok) {
         throw new Error(`auth setup response was not ok: ${response.status}`);
     }

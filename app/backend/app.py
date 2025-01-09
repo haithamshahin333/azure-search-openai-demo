@@ -100,29 +100,34 @@ mimetypes.add_type("application/javascript", ".js")
 mimetypes.add_type("text/css", ".css")
 
 
-@bp.route("/")
+# add a healthcheck endpoint
+@bp.route("/api/health")
+async def health():
+    return jsonify({"status": "healthy"})
+
+@bp.route("/api")
 async def index():
     return await bp.send_static_file("index.html")
 
 
 # Empty page is recommended for login redirect to work.
 # See https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/lib/msal-browser/docs/initialization.md#redirecturi-considerations for more information
-@bp.route("/redirect")
+@bp.route("/api/redirect")
 async def redirect():
     return ""
 
 
-@bp.route("/favicon.ico")
+@bp.route("/api/favicon.ico")
 async def favicon():
     return await bp.send_static_file("favicon.ico")
 
 
-@bp.route("/assets/<path:path>")
+@bp.route("/api/assets/<path:path>")
 async def assets(path):
     return await send_from_directory(Path(__file__).resolve().parent / "static" / "assets", path)
 
 
-@bp.route("/content/<path>")
+@bp.route("/api/content/<path>")
 @authenticated_path
 async def content_file(path: str, auth_claims: Dict[str, Any]):
     """
@@ -167,7 +172,7 @@ async def content_file(path: str, auth_claims: Dict[str, Any]):
     return await send_file(blob_file, mimetype=mime_type, as_attachment=False, attachment_filename=path)
 
 
-@bp.route("/ask", methods=["POST"])
+@bp.route("/api/ask", methods=["POST"])
 @authenticated
 async def ask(auth_claims: Dict[str, Any]):
     if not request.is_json:
@@ -206,7 +211,7 @@ async def format_as_ndjson(r: AsyncGenerator[dict, None]) -> AsyncGenerator[str,
         yield json.dumps(error_dict(error))
 
 
-@bp.route("/chat", methods=["POST"])
+@bp.route("/api/chat", methods=["POST"])
 @authenticated
 async def chat(auth_claims: Dict[str, Any]):
     if not request.is_json:
@@ -240,7 +245,7 @@ async def chat(auth_claims: Dict[str, Any]):
         return error_response(error, "/chat")
 
 
-@bp.route("/chat/stream", methods=["POST"])
+@bp.route("/api/chat/stream", methods=["POST"])
 @authenticated
 async def chat_stream(auth_claims: Dict[str, Any]):
     if not request.is_json:
@@ -278,13 +283,13 @@ async def chat_stream(auth_claims: Dict[str, Any]):
 
 
 # Send MSAL.js settings to the client UI
-@bp.route("/auth_setup", methods=["GET"])
+@bp.route("/api/auth_setup", methods=["GET"])
 def auth_setup():
     auth_helper = current_app.config[CONFIG_AUTH_CLIENT]
     return jsonify(auth_helper.get_auth_setup_for_client())
 
 
-@bp.route("/config", methods=["GET"])
+@bp.route("/api/config", methods=["GET"])
 def config():
     return jsonify(
         {
@@ -302,7 +307,7 @@ def config():
     )
 
 
-@bp.route("/speech", methods=["POST"])
+@bp.route("/api/speech", methods=["POST"])
 async def speech():
     if not request.is_json:
         return jsonify({"error": "request must be json"}), 415
@@ -346,7 +351,7 @@ async def speech():
         return jsonify({"error": str(e)}), 500
 
 
-@bp.post("/upload")
+@bp.post("/api/upload")
 @authenticated
 async def upload(auth_claims: dict[str, Any]):
     request_files = await request.files
@@ -375,7 +380,7 @@ async def upload(auth_claims: dict[str, Any]):
     return jsonify({"message": "File uploaded successfully"}), 200
 
 
-@bp.post("/delete_uploaded")
+@bp.post("/api/delete_uploaded")
 @authenticated
 async def delete_uploaded(auth_claims: dict[str, Any]):
     request_json = await request.get_json()
@@ -390,7 +395,7 @@ async def delete_uploaded(auth_claims: dict[str, Any]):
     return jsonify({"message": f"File {filename} deleted successfully"}), 200
 
 
-@bp.get("/list_uploaded")
+@bp.get("/api/list_uploaded")
 @authenticated
 async def list_uploaded(auth_claims: dict[str, Any]):
     user_oid = auth_claims["oid"]
