@@ -55,8 +55,8 @@ az eventgrid system-topic create \
     --resource-group $RESOURCE_GROUP \
     --location $LOCATION \
     --topic-type Microsoft.Storage.StorageAccounts \
-    --source /subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Storage/storageAccounts/$STORAGE_ACCOUNT_NAME \
-    --mi-system-assigned
+    --identity systemassigned \
+    --source /subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Storage/storageAccounts/$STORAGE_ACCOUNT_NAME
 
 # Get the system assigned managed identity for the system topic and assign it the Storage Queue Data Message Sender role
 SYSTEM_TOPIC_ID=$(az eventgrid system-topic show --name $STORAGE_ACCOUNT_NAME-system-topic --resource-group $RESOURCE_GROUP --query id --output tsv)
@@ -127,7 +127,7 @@ az acr login --name $ACR_NAME
 az role assignment create --assignee $MANAGED_IDENTITY_OBJECT_ID --role "AcrPush" --scope $ACR_ID
 
 echo "PUSHING IMAGE TO ACR"
-docker build . -t $ACR_NAME.azurecr.io/$IMAGE_NAME:1217 -f $DOCKERFILE_PATH
+docker build . -t $ACR_NAME.azurecr.io/$IMAGE_NAME:latest -f $DOCKERFILE_PATH
 docker push $ACR_NAME.azurecr.io/$IMAGE_NAME:latest
 
 echo "Building Docker image and pushing to ACR..."
@@ -155,6 +155,12 @@ echo "Assigning Storage Blob Data Reader and Storage Queue Data Message Reader p
 STORAGE_ACCOUNT_ID=$(az storage account show --name $STORAGE_ACCOUNT_NAME --resource-group $RESOURCE_GROUP --query id --output tsv)
 az role assignment create --assignee $MANAGED_IDENTITY_OBJECT_ID --role "Storage Blob Data Reader" --scope $STORAGE_ACCOUNT_ID
 az role assignment create --assignee $MANAGED_IDENTITY_OBJECT_ID --role "Storage Queue Data Contributor" --scope $STORAGE_ACCOUNT_ID
+
+COSMOS_DB_ACCOUNT_ID=$(az cosmosdb show --name $COSMOS_DB_ACCOUNT_NAME --resource-group $RESOURCE_GROUP --query id --output tsv)
+
+echo "Assigning Cosmos DB Data Reader and Cosmos DB Operator permissions to the managed identity..."
+# Assign Cosmos DB Data Reader and Cosmos DB Operator permissions to the managed identity
+az cosmosdb sql role assignment create --resource-group $RESOURCE_GROUP --account-name $COSMOS_DB_ACCOUNT_NAME --role-definition-id 00000000-0000-0000-0000-000000000002 --principal-id $MANAGED_IDENTITY_OBJECT_ID --scope $COSMOS_DB_ACCOUNT_ID
 
 echo "Assigning additional roles to the managed identity at the subscription scope..."
 # Assign additional roles to the managed identity at the subscription scope
