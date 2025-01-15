@@ -81,9 +81,9 @@ class BlobListFileStrategy(ListFileStrategy):
     async def list_paths(self) -> AsyncGenerator[str, None]:
         yield self.blob_url
 
-    def extract_blob_name(blob_url):
+    def extract_blob_name(self):
         # Parse the URL
-        parsed_url = urlparse(blob_url)
+        parsed_url = urlparse(self.blob_url)
         
         # Extract the blob path (skip the first segment which is the container)
         blob_name = '/'.join(parsed_url.path.split('/')[2:])
@@ -92,7 +92,7 @@ class BlobListFileStrategy(ListFileStrategy):
     async def list(self) -> AsyncGenerator[File, None]:
         blob_service_client = BlobServiceClient(account_url=f"https://{self.storage_account}.blob.core.windows.net", credential=self.credential)
         container_name = self.storage_container
-        blob_name = self.extract_blob_name(self.blob_url)
+        blob_name = self.extract_blob_name()
 
         async with blob_service_client:  # Ensure BlobServiceClient is properly closed
             async with blob_service_client.get_container_client(container_name) as container_client:  # Ensure ContainerClient is properly closed
