@@ -14,9 +14,9 @@ from azure.storage.filedatalake.aio import (
 )
 
 from azure.storage.blob.aio import BlobServiceClient
+from urllib.parse import urlparse
 
 logger = logging.getLogger("scripts")
-
 
 class File:
     """
@@ -81,10 +81,18 @@ class BlobListFileStrategy(ListFileStrategy):
     async def list_paths(self) -> AsyncGenerator[str, None]:
         yield self.blob_url
 
+    def extract_blob_name(blob_url):
+        # Parse the URL
+        parsed_url = urlparse(blob_url)
+        
+        # Extract the blob path (skip the first segment which is the container)
+        blob_name = '/'.join(parsed_url.path.split('/')[2:])
+        return blob_name
+
     async def list(self) -> AsyncGenerator[File, None]:
         blob_service_client = BlobServiceClient(account_url=f"https://{self.storage_account}.blob.core.windows.net", credential=self.credential)
         container_name = self.storage_container
-        blob_name = self.blob_url.split("/")[-1]
+        blob_name = self.extract_blob_name(self.blob_url)
 
         async with blob_service_client:  # Ensure BlobServiceClient is properly closed
             async with blob_service_client.get_container_client(container_name) as container_client:  # Ensure ContainerClient is properly closed
