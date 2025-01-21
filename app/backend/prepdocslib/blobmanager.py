@@ -53,7 +53,7 @@ class BlobManager:
                 await container_client.create_container()
 
             # Re-open and upload the original file
-            if file.url is None:
+            if file.url is None or file.blob is True:
                 with open(file.content.name, "rb") as reopened_file:
                     blob_name = BlobManager.blob_name_from_file_name(file.content.name)
                     logger.info("Uploading blob for whole file -> %s", blob_name)
