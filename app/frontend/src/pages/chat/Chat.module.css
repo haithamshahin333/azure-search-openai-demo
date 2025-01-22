@@ -151,3 +151,20 @@
     display: inline-block; /* Ensure the container fits the image */
     border-radius: 4px; /* Optional: Add border radius if needed */
 }
+
+
+.sentimentButtons {
+    display: flex;
+    gap: 10px;
+}
+
+.sentimentButton {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.sentimentButton.selected {
+    color: blue; /* or any color you prefer for the selected state */
+}

@@ -62,6 +62,7 @@ export type ChatAppResponseOrError = {
     context: ResponseContext;
     session_state: any;
     error?: string;
+    sentiment: any;
 };
 
 export type ChatAppResponse = {
@@ -69,6 +70,7 @@ export type ChatAppResponse = {
     delta: ResponseMessage;
     context: ResponseContext;
     session_state: any;
+    sentiment: any;
 };
 
 export type ChatAppRequestContext = {

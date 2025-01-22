@@ -22,3 +22,12 @@ echo "SET HTTP SETTINGS ON FRONTEND APP SERVICE"
 # az rest --method PUT --url '/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RESOURCE_GROUP}/providers/Microsoft.Web/sites/{WEBAPP_NAME}/config/authsettingsv2?api-version=2020-06-01' --body @./authsettings.json
 
 echo "REDEPLOY FRONTEND WITH PROPER AUTH SETTINGS CONFIGURED IN APP"
+
+echo "add cosmos role to backend managed identity"
+export BACKEND_APP_SERVICE_NAME=$(az webapp list --query "[?contains(name, 'backend')].name" -o tsv)
+BACKEND_MI_ID=$(az webapp identity assign --name $BACKEND_APP_SERVICE_NAME --resource-group $AZURE_RESOURCE_GROUP --query principalId -o tsv)
+
+COSMOS_DB_ACCOUNT_ID=$(az cosmosdb show --name $AZURE_INGEST_COSMOS_DB_ACCOUNT_NAME --resource-group $AZURE_RESOURCE_GROUP --query id --output tsv)
+echo "Assigning Cosmos DB Data Reader and Cosmos DB Operator permissions to the managed identity..."
+# Assign Cosmos DB Data Reader and Cosmos DB Operator permissions to the managed identity
+az cosmosdb sql role assignment create --resource-group $AZURE_RESOURCE_GROUP --account-name $AZURE_INGEST_COSMOS_DB_ACCOUNT_NAME --role-definition-id 00000000-0000-0000-0000-000000000002 --principal-id $BACKEND_MI_ID --scope $COSMOS_DB_ACCOUNT_ID

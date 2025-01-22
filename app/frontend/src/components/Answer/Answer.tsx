@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Stack, IconButton } from "@fluentui/react";
 import { useTranslation } from "react-i18next";
+import { IPublicClientApplication } from "@azure/msal-browser";
 import DOMPurify from "dompurify";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -26,6 +27,7 @@ interface Props {
     showFollowupQuestions?: boolean;
     showSpeechOutputBrowser?: boolean;
     showSpeechOutputAzure?: boolean;
+    client?: IPublicClientApplication;
 }
 
 export const Answer = ({
@@ -47,6 +49,10 @@ export const Answer = ({
     const { t } = useTranslation();
     const sanitizedAnswerHtml = DOMPurify.sanitize(parsedAnswer.answerHtml);
     const [copied, setCopied] = useState(false);
+   
+    const selectedSentiment = answer.sentiment;
+    // console.log("this is the selected sentiment: ", selectedSentiment);
+
 
     const handleCopy = () => {
         // Single replace to remove all HTML tags to remove the citations
@@ -94,6 +100,23 @@ export const Answer = ({
                             <SpeechOutputAzure answer={sanitizedAnswerHtml} index={index} speechConfig={speechConfig} isStreaming={isStreaming} />
                         )}
                         {showSpeechOutputBrowser && <SpeechOutputBrowser answer={sanitizedAnswerHtml} />}
+                            {selectedSentiment === "positive" ? (
+                                <IconButton
+                                    style={{ color: "blue" }}
+                                    iconProps={{ iconName: "Like" }}
+                                    title="Thumbs Up"
+                                    ariaLabel="Thumbs Up"
+                                    disabled
+                                />
+                            ) : selectedSentiment === "negative" ? (
+                                <IconButton
+                                    style={{ color: "blue" }}
+                                    iconProps={{ iconName: "Dislike" }}
+                                    title="Thumbs Down"
+                                    ariaLabel="Thumbs Down"
+                                    disabled
+                                />
+                            ) : null}
                     </div>
                 </Stack>
             </Stack.Item>
@@ -103,6 +126,8 @@ export const Answer = ({
                     <ReactMarkdown children={sanitizedAnswerHtml} rehypePlugins={[rehypeRaw]} remarkPlugins={[remarkGfm]} />
                 </div>
             </Stack.Item>
+
+
 
             {!!parsedAnswer.citations.length && (
                 <Stack.Item>

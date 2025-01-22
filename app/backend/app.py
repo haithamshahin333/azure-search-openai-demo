@@ -21,6 +21,7 @@ from azure.identity.aio import (
     ManagedIdentityCredential,
     get_bearer_token_provider,
 )
+from azure.cosmos.aio import ContainerProxy, CosmosClient
 from azure.monitor.opentelemetry import configure_azure_monitor
 from azure.search.documents.aio import SearchClient
 from azure.search.documents.indexes.aio import SearchIndexClient
@@ -80,6 +81,8 @@ from config import (
     CONFIG_USER_BLOB_CONTAINER_CLIENT,
     CONFIG_USER_UPLOAD_ENABLED,
     CONFIG_VECTOR_SEARCH_ENABLED,
+    CONFIG_COSMOS_LOGGING_CLIENT,
+    CONFIG_COSMOS_LOGGING_CONTAINER
 )
 from core.authentication import AuthenticationHelper
 from core.sessionhelper import create_session_id
@@ -350,6 +353,27 @@ async def speech():
         current_app.logger.exception("Exception in /speech")
         return jsonify({"error": str(e)}), 500
 
+@bp.route("/api/log_response", methods=["POST"])
+@authenticated
+async def log_response(auth_claims: dict[str, Any]):
+    request_json = await request.get_json()
+    
+    # add a timestamp to the request and id
+    request_json["timestamp"] = time.time()
+    
+    # make the id a combination of the chat index and the session state
+    request_json["id"] = f"{request_json['chatIndex']}-{request_json['sessionState']}"
+    
+    # upsert item into cosmos based on id - pass the full request json
+    cosmos_container: ContainerProxy = current_app.config[CONFIG_COSMOS_LOGGING_CONTAINER]
+    try:
+        await cosmos_container.upsert_item(body=request_json)
+    except Exception as error:
+        current_app.logger.exception("Error logging response", error)
+        return jsonify({"message": "Error logging response", "status": "failed"}), 500
+    return jsonify({"message": "Response logged successfully", "status": "success"}), 200
+
+    
 
 @bp.post("/api/upload")
 @authenticated
@@ -473,6 +497,11 @@ async def setup_clients():
 
     # WEBSITE_HOSTNAME is always set by App Service, RUNNING_IN_PRODUCTION is set in main.bicep
     RUNNING_ON_AZURE = os.getenv("WEBSITE_HOSTNAME") is not None or os.getenv("RUNNING_IN_PRODUCTION") is not None
+    
+    # EXPOSE LOG REQUESTS API AND STORE IN COSMOS DB
+    USE_REQLOG = os.getenv("USE_REQLOG", "").lower() == "true"
+    
+        
 
     # Use the current user identity for keyless authentication to Azure services.
     # This assumes you use 'azd auth login' locally, and managed identity when deployed on Azure.
@@ -512,7 +541,20 @@ async def setup_clients():
     blob_container_client = ContainerClient(
         f"https://{AZURE_STORAGE_ACCOUNT}.blob.core.windows.net", AZURE_STORAGE_CONTAINER, credential=azure_credential
     )
-
+    
+    if USE_REQLOG:
+        # create cosmos db client
+        AZURE_COSMOSDB_LOGGING_ACCOUNT = os.getenv("AZURE_REQLOG_COSMOS_DB_ACCOUNT_NAME")
+        AZURE_COSMOSDB_LOGGING_DATABASE = os.getenv("AZURE_REQLOG_COSMOS_DB_DATABASE_NAME")
+        AZURE_COSMOSDB_LOGGING_CONTAINER = os.getenv("AZURE_REQLOG_COSMOS_DB_CONTAINER_NAME")
+        cosmos_client = CosmosClient(
+            url=f"https://{AZURE_COSMOSDB_LOGGING_ACCOUNT}.documents.azure.com:443/", credential=azure_credential
+        )
+        cosmos_db = cosmos_client.get_database_client(AZURE_COSMOSDB_LOGGING_DATABASE)
+        cosmos_container = cosmos_db.get_container_client(AZURE_COSMOSDB_LOGGING_CONTAINER)
+        current_app.config[CONFIG_COSMOS_LOGGING_CLIENT] = cosmos_client
+        current_app.config[CONFIG_COSMOS_LOGGING_CONTAINER] = cosmos_container
+        
     # Set up authentication helper
     search_index = None
     if AZURE_USE_AUTHENTICATION:
@@ -730,7 +772,10 @@ async def close_clients():
     await current_app.config[CONFIG_BLOB_CONTAINER_CLIENT].close()
     if current_app.config.get(CONFIG_USER_BLOB_CONTAINER_CLIENT):
         await current_app.config[CONFIG_USER_BLOB_CONTAINER_CLIENT].close()
-
+        
+    if current_app.config.get(CONFIG_COSMOS_LOGGING_CLIENT):
+        await current_app.config[CONFIG_COSMOS_LOGGING_CLIENT].close()
+        
 
 def create_app():
     app = Quart(__name__)
