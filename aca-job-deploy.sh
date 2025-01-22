@@ -152,6 +152,38 @@ az cosmosdb sql container create \
     --name $AZURE_INGEST_COSMOS_DB_CONTAINER_NAME \
     --partition-key-path /id
 
+# if USE_REQLOG is true, create a database and container for request logs
+###
+# AZURE_REQLOG_COSMOS_DB_CONTAINER_NAME="responses"
+# AZURE_REQLOG_COSMOS_DB_DATABASE_NAME="log"
+# USE_REQLOG="true"
+###
+
+if [ "$USE_REQLOG" = "true" ]; then
+    echo "Creating Cosmos DB database and container for request logs..."
+    az cosmosdb sql database create \
+        --account-name $AZURE_INGEST_COSMOS_DB_ACCOUNT_NAME \
+        --resource-group $AZURE_RESOURCE_GROUP \
+        --name $AZURE_REQLOG_COSMOS_DB_DATABASE_NAME
+
+    az cosmosdb sql container create \
+        --account-name $AZURE_INGEST_COSMOS_DB_ACCOUNT_NAME \
+        --database-name $AZURE_REQLOG_COSMOS_DB_DATABASE_NAME \
+        --resource-group $AZURE_RESOURCE_GROUP \
+        --name $AZURE_REQLOG_COSMOS_DB_CONTAINER_NAME \
+        --partition-key-path /id
+fi
+
+# adding backend app service mi to have cosmos db role
+export BACKEND_APP_SERVICE_NAME=$(az webapp list --query "[?contains(name, 'backend')].name" -o tsv)
+BACKEND_MI_ID=$(az webapp identity assign --name $BACKEND_APP_SERVICE_NAME --resource-group $AZURE_RESOURCE_GROUP --query principalId -o tsv)
+
+COSMOS_DB_ACCOUNT_ID=$(az cosmosdb show --name $AZURE_INGEST_COSMOS_DB_ACCOUNT_NAME --resource-group $AZURE_RESOURCE_GROUP --query id --output tsv)
+echo "Assigning Cosmos DB Data Reader and Cosmos DB Operator permissions to the managed identity..."
+# Assign Cosmos DB Data Reader and Cosmos DB Operator permissions to the managed identity
+az cosmosdb sql role assignment create --resource-group $AZURE_RESOURCE_GROUP --account-name $AZURE_INGEST_COSMOS_DB_ACCOUNT_NAME --role-definition-id 00000000-0000-0000-0000-000000000002 --principal-id $BACKEND_MI_ID --scope $COSMOS_DB_ACCOUNT_ID
+
+
 echo "Creating private endpoint for Cosmos DB..."
 # Create a private endpoint for the Cosmos DB
 COSMOS_DB_ACCOUNT_ID=$(az cosmosdb show --name $AZURE_INGEST_COSMOS_DB_ACCOUNT_NAME --resource-group $AZURE_RESOURCE_GROUP --query id --output tsv)
