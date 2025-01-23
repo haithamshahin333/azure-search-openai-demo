@@ -1,4 +1,4 @@
-const BACKEND_URI = "https://app-backend-ighmfsyxlmlby.azurewebsites.net/api";
+const BACKEND_URI = "https://APIM/api";
 
 import { ChatAppResponse, ChatAppResponseOrError, ChatAppRequest, Config, SimpleAPIResponse, HistoryListApiResponse, HistroyApiResponse } from "./models";
 import { useLogin, getToken, isUsingAppServicesLogin } from "../authConfig";
