@@ -40,8 +40,9 @@ class File:
         return os.path.splitext(self.content.name)[1]
 
     def filename_to_id(self):
-        filename_ascii = re.sub("[^0-9a-zA-Z_-]", "_", self.filename())
-        filename_hash = base64.b16encode(self.filename().encode("utf-8")).decode("ascii")
+        raw_filename = os.path.basename(self.filename())
+        filename_ascii = re.sub("[^0-9a-zA-Z_-]", "_", raw_filename)
+        filename_hash = base64.b16encode(raw_filename.encode("utf-8")).decode("ascii")
         acls_hash = ""
         if self.acls:
             acls_hash = base64.b16encode(str(self.acls).encode("utf-8")).decode("ascii")
