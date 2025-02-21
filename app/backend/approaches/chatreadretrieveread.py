@@ -62,6 +62,35 @@ class ChatReadRetrieveReadApproach(ChatApproach):
         {follow_up_questions_prompt}
         {injected_prompt}
         """
+    
+    async def classify_user_input_from_keywords(self, user_question: str, keywords: List[str]) -> bool:
+        # Build the prompt
+        keywords_str = ", ".join(keywords)
+        prompt = (
+            f"Determine if the following user question contains any of these keywords - case insenstive or synonym terms should also be matched: {keywords_str}.\n"
+            f"Respond only with 'True' or 'False'.\n"
+            f"User question: {user_question}"
+        )
+
+        # Prepare the messages for the chat completion
+        messages = [
+            {"role": "system", "content": "You are a classification assistant that answers only with True or False."},
+            {"role": "user", "content": prompt},
+        ]
+
+        # Call the OpenAI chat API with minimal output tokens
+        response = await self.openai_client.chat.completions.create(
+            messages=messages,
+            model=self.chatgpt_deployment if self.chatgpt_deployment else self.chatgpt_model,
+            temperature=0.0,
+            max_tokens=5,
+            n=1,
+        )
+
+        # Extract and return the classification result
+        result = response.choices[0].message.content.strip()
+        return result == "True"
+
 
     @overload
     async def run_until_final_call(
