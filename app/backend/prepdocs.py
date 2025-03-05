@@ -269,8 +269,6 @@ async def process_documents(args):
         # We only set the level to INFO for our logger,
         # to avoid seeing the noisy INFO level logs from the Azure SDKs
         logger.setLevel(logging.DEBUG)
-        logging.basicConfig(format="%(message)s")
-        logger.setLevel(logging.INFO)
 
     try:
         logger.info("Loading azd env")
@@ -278,10 +276,6 @@ async def process_documents(args):
     except Exception as e:
         logger.error("Error loading azd env: %s", e)
         load_dotenv()
-
-    if os.getenv("AZURE_PUBLIC_NETWORK_ACCESS") == "Disabled":
-        logger.error("AZURE_PUBLIC_NETWORK_ACCESS is set to Disabled. Exiting.")
-        exit(0)
 
     if os.getenv("AZURE_PUBLIC_NETWORK_ACCESS") == "Disabled":
         logger.error("AZURE_PUBLIC_NETWORK_ACCESS is set to Disabled. Exiting.")
