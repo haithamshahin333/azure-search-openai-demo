@@ -2,10 +2,10 @@ import { useRef, useState, useEffect, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import { Panel, DefaultButton } from "@fluentui/react";
-import { SparkleFilled } from "@fluentui/react-icons";
 import readNDJSONStream from "ndjson-readablestream";
 import imgUrl from "../../assets/azure-icon.jpg";
 
+import appLogo from "../../assets/applogo.svg";
 import styles from "./Chat.module.css";
 
 import {
