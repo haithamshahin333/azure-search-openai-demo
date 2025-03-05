@@ -104,6 +104,7 @@ class SearchManager:
                         vector_search_profile_name="embedding_config",
                     ),
                     SimpleField(name="category", type="Edm.String", filterable=True, facetable=True),
+                    SimpleField(name="filename", type="Edm.String", filterable=True, facetable=True),
                     SimpleField(
                         name="sourcepage",
                         type="Edm.String",
@@ -265,6 +266,7 @@ class SearchManager:
                         "id": f"{section.content.filename_to_id()}-page-{section_index + batch_index * MAX_BATCH_SIZE}",
                         "content": section.split_page.text,
                         "category": section.category,
+                        "filename": os.path.basename(section.content.filename()),
                         "sourcepage": (
                             BlobManager.blob_image_name_from_file_page(
                                 filename=section.content.filename(),
@@ -307,7 +309,7 @@ class SearchManager:
                     # Replace ' with '' to escape the single quote for the filter
                     # https://learn.microsoft.com/azure/search/query-odata-filter-orderby-syntax#escaping-special-characters-in-string-constants
                     path_for_filter = os.path.basename(path).replace("'", "''")
-                    filter = f"sourcefile eq '{path_for_filter}'"
+                    filter = f"filename eq '{path_for_filter}'"
                 max_results = 1000
                 result = await search_client.search(
                     search_text="", filter=filter, top=max_results, include_total_count=True

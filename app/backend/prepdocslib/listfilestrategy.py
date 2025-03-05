@@ -14,9 +14,9 @@ from azure.storage.filedatalake.aio import (
 )
 
 from azure.storage.blob.aio import BlobServiceClient
+from urllib.parse import urlparse
 
 logger = logging.getLogger("scripts")
-
 
 class File:
     """
@@ -24,20 +24,25 @@ class File:
     This file might contain access control information about which users or groups can access it
     """
 
-    def __init__(self, content: IO, acls: Optional[dict[str, list]] = None, url: Optional[str] = None):
+    def __init__(self, content: IO, acls: Optional[dict[str, list]] = None, url: Optional[str] = None, blob: Optional[bool] = False, blob_name: Optional[str] = None):
         self.content = content
         self.acls = acls or {}
         self.url = url
+        self.blob = blob
+        self.blob_name = blob_name
 
     def filename(self):
+        if self.blob_name:
+            return self.blob_name
         return os.path.basename(self.content.name)
 
     def file_extension(self):
         return os.path.splitext(self.content.name)[1]
 
     def filename_to_id(self):
-        filename_ascii = re.sub("[^0-9a-zA-Z_-]", "_", self.filename())
-        filename_hash = base64.b16encode(self.filename().encode("utf-8")).decode("ascii")
+        raw_filename = os.path.basename(self.filename())
+        filename_ascii = re.sub("[^0-9a-zA-Z_-]", "_", raw_filename)
+        filename_hash = base64.b16encode(raw_filename.encode("utf-8")).decode("ascii")
         acls_hash = ""
         if self.acls:
             acls_hash = base64.b16encode(str(self.acls).encode("utf-8")).decode("ascii")
@@ -81,20 +86,32 @@ class BlobListFileStrategy(ListFileStrategy):
     async def list_paths(self) -> AsyncGenerator[str, None]:
         yield self.blob_url
 
+    def extract_blob_name(self):
+        prefix = f"https://{self.storage_account}.blob.core.windows.net/{self.storage_container}/"
+        if self.blob_url.startswith(prefix):
+            blob_name = self.blob_url[len(prefix):]
+        else:
+            raise ValueError("The blob URL does not match the expected pattern.")
+        
+        return blob_name
+
     async def list(self) -> AsyncGenerator[File, None]:
         blob_service_client = BlobServiceClient(account_url=f"https://{self.storage_account}.blob.core.windows.net", credential=self.credential)
         container_name = self.storage_container
-        blob_name = self.blob_url.split("/")[-1]
+        blob_name = self.extract_blob_name()
 
         async with blob_service_client:  # Ensure BlobServiceClient is properly closed
             async with blob_service_client.get_container_client(container_name) as container_client:  # Ensure ContainerClient is properly closed
-                temp_file_path = os.path.join(tempfile.gettempdir(), os.path.basename(blob_name))
+                temp_file_path = os.path.join(tempfile.gettempdir(), blob_name)
+                temp_dir = os.path.dirname(temp_file_path)
+                os.makedirs(temp_dir, exist_ok=True)  # Create the directory if it does not exist
+                logger.info(f"Downloading {blob_name} to {temp_file_path}")
                 try:
                     async with container_client.get_blob_client(blob_name) as blob_client:  # Ensure BlobClient is properly closed
                         with open(temp_file_path, "wb") as temp_file:
                             downloader = await blob_client.download_blob()
                             await downloader.readinto(temp_file)
-                    yield File(content=open(temp_file_path, "rb"), url=blob_client.url)
+                    yield File(content=open(temp_file_path, "rb"), url=blob_client.url, blob=True, blob_name=blob_name)
                 except Exception as blob_exception:
                     logger.error(f"\tGot an error while reading {blob_name} -> {blob_exception} --> skipping file")
                     try:

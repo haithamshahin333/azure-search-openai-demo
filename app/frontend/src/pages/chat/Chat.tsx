@@ -18,7 +18,8 @@ import {
     ResponseMessage,
     VectorFieldOptions,
     GPT4VInput,
-    SpeechConfig
+    SpeechConfig,
+    logQuestionAndAnswerApi
 } from "../../api";
 import { Answer, AnswerError, AnswerLoading } from "../../components/Answer";
 import { QuestionInput } from "../../components/QuestionInput";
@@ -56,7 +57,7 @@ const Chat = () => {
     const [useSemanticCaptions, setUseSemanticCaptions] = useState<boolean>(false);
     const [includeCategory, setIncludeCategory] = useState<string>("");
     const [excludeCategory, setExcludeCategory] = useState<string>("");
-    const [useSuggestFollowupQuestions, setUseSuggestFollowupQuestions] = useState<boolean>(false);
+    const [useSuggestFollowupQuestions, setUseSuggestFollowupQuestions] = useState<boolean>(true);
     const [vectorFieldList, setVectorFieldList] = useState<VectorFieldOptions[]>([VectorFieldOptions.Embedding]);
     const [useOidSecurityFilter, setUseOidSecurityFilter] = useState<boolean>(false);
     const [useGroupsSecurityFilter, setUseGroupsSecurityFilter] = useState<boolean>(false);
@@ -174,6 +175,7 @@ const Chat = () => {
     const historyManager = useHistoryManager(historyProvider);
 
     const makeApiRequest = async (question: string) => {
+        console.log("making api request...")
         lastQuestionRef.current = question;
 
         error && setError(undefined);
@@ -226,7 +228,9 @@ const Chat = () => {
             }
             if (shouldStream) {
                 const parsedResponse: ChatAppResponse = await handleAsyncRequest(question, answers, response.body);
+                console.log("response is completed with streaming...");
                 setAnswers([...answers, [question, parsedResponse]]);
+                logQuestionAndAnswerApi(answers.length, question, parsedResponse, token);
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
                     const token = client ? await getToken(client) : undefined;
                     historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse]], token);
@@ -237,6 +241,7 @@ const Chat = () => {
                     throw Error(parsedResponse.error);
                 }
                 setAnswers([...answers, [question, parsedResponse as ChatAppResponse]]);
+                logQuestionAndAnswerApi(answers.length, question, parsedResponse, token);
                 if (typeof parsedResponse.session_state === "string" && parsedResponse.session_state !== "") {
                     const token = client ? await getToken(client) : undefined;
                     historyManager.addItem(parsedResponse.session_state, [...answers, [question, parsedResponse as ChatAppResponse]], token);
@@ -246,6 +251,8 @@ const Chat = () => {
         } catch (e) {
             setError(e);
         } finally {
+            console.log("no longer loading...")
+            //log the final element of the answers array
             setIsLoading(false);
         }
     };
@@ -341,6 +348,15 @@ const Chat = () => {
         makeApiRequest(example);
     };
 
+    // Add the updateSentiment function
+    const updateSentiment = async (index: number, sentiment: 'positive' | 'negative') => {
+        const updatedAnswers = [...answers];
+        const token = client ? await getToken(client) : undefined;
+        updatedAnswers[index][1].sentiment = sentiment;
+        setAnswers(updatedAnswers);
+        await logQuestionAndAnswerApi(index, updatedAnswers[index][0], updatedAnswers[index][1], token)
+    };
+
     const onShowCitation = (citation: string, index: number) => {
         if (activeCitation === citation && activeAnalysisPanelTab === AnalysisPanelTabs.CitationTab && selectedAnswer === index) {
             setActiveAnalysisPanelTab(undefined);
@@ -362,6 +378,8 @@ const Chat = () => {
         setSelectedAnswer(index);
     };
 
+
+
     const { t, i18n } = useTranslation();
 
     return (
@@ -379,7 +397,7 @@ const Chat = () => {
                 <div className={styles.commandsContainer}>
                     <ClearChatButton className={styles.commandButton} onClick={clearChat} disabled={!lastQuestionRef.current || isLoading} />
                     {showUserUpload && <UploadFile className={styles.commandButton} disabled={!loggedIn} />}
-                    <SettingsButton className={styles.commandButton} onClick={() => setIsConfigPanelOpen(!isConfigPanelOpen)} />
+                    {/* <SettingsButton className={styles.commandButton} onClick={() => setIsConfigPanelOpen(!isConfigPanelOpen)} /> */}
                 </div>
             </div>
             <div className={styles.chatRoot} style={{ marginLeft: isHistoryPanelOpen ? "300px" : "0" }}>
@@ -404,6 +422,7 @@ const Chat = () => {
                                             <Answer
                                                 isStreaming={true}
                                                 key={index}
+                                                client={client}
                                                 answer={streamedAnswer[1]}
                                                 index={index}
                                                 speechConfig={speechConfig}
@@ -426,6 +445,7 @@ const Chat = () => {
                                         <div className={styles.chatMessageGpt}>
                                             <Answer
                                                 isStreaming={false}
+                                                client={client}
                                                 key={index}
                                                 answer={answer[1]}
                                                 index={index}
@@ -440,6 +460,25 @@ const Chat = () => {
                                                 showSpeechOutputBrowser={showSpeechOutputBrowser}
                                             />
                                         </div>
+                                        {answer[1].sentiment === undefined && (
+                                            <div className={styles.sentimentButtons}>
+                                                <div>
+                                                    <span>Is this response helpful?</span>
+                                                </div>
+                                                <button
+                                                    className={`${styles.sentimentButton} ${answer[1].sentiment === 'thumbsUp' ? styles.selected : ''}`}
+                                                    onClick={() => updateSentiment(index, 'positive')}
+                                                >
+                                                    👍
+                                                </button>
+                                                <button
+                                                    className={`${styles.sentimentButton} ${answer[1].sentiment === 'thumbsDown' ? styles.selected : ''}`}
+                                                    onClick={() => updateSentiment(index, 'negative')}
+                                                >
+                                                    👎
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             {isLoading && (

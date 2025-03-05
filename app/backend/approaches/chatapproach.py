@@ -5,7 +5,7 @@ from typing import Any, AsyncGenerator, Optional
 
 from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
 
-from approaches.approach import Approach
+from approaches.approach import Approach, ThoughtStep
 
 
 class ChatApproach(Approach, ABC):
@@ -16,6 +16,10 @@ class ChatApproach(Approach, ABC):
         {"role": "assistant", "content": "Show available health plans"},
     ]
     NO_RESPONSE = "0"
+
+    KEYWORDS = ["golf", "basketball", "football"]
+
+    PRE_GENERATED_RESPONSE = "I’m sorry, but I can’t provide an answer to that question."
 
     follow_up_questions_prompt_content = """Generate 3 very brief follow-up questions that the user would likely ask next.
     Enclose the follow-up questions in double angle brackets. Example:
@@ -110,6 +114,29 @@ class ChatApproach(Approach, ABC):
         auth_claims: dict[str, Any],
         session_state: Any = None,
     ) -> AsyncGenerator[dict, None]:
+        # Call the classify function before running the rest of the implementation.
+        user_question = messages[-1]["content"]
+        if await self.classify_user_input_from_keywords(user_question, self.KEYWORDS):
+            extra_info = {
+                "data_points": {"text": ["Classified as a non-answerable question"]},
+                "thoughts": [
+                    ThoughtStep(
+                        title="Classified as a non-answerable question",
+                        description="Classified as a non-answerable question",
+                    )
+                ],
+            }
+
+            yield {"delta": {"role": "assistant"}, "context": extra_info, "session_state": session_state}
+            
+            yield {
+                "delta": {
+                    "content": self.PRE_GENERATED_RESPONSE,
+                    "role": "assistant",
+                }
+            }
+            return
+
         extra_info, chat_coroutine = await self.run_until_final_call(
             messages, overrides, auth_claims, should_stream=True
         )

@@ -83,7 +83,14 @@ module vnet './core/networking/vnet.bicep' = if (usePrivateEndpoint) {
   }
 }
 
-output appSubnetId string = usePrivateEndpoint ? vnet.outputs.vnetSubnets[2].id : ''
-output backendSubnetId string = usePrivateEndpoint ? vnet.outputs.vnetSubnets[0].id : ''
+
 output vnetName string = usePrivateEndpoint ? vnet.outputs.name : ''
 
+
+//return as outputs all the subnet IDs with the proper names - don't rely on the order of the subnet creation
+output backendSubnetId string = vnet.outputs.vnetSubnets[0].id
+output azureBastionSubnetId string = vnet.outputs.vnetSubnets[1].id
+output appSubnetId string = vnet.outputs.vnetSubnets[2].id
+output vmSubnetId string = vnet.outputs.vnetSubnets[3].id
+output apimSubnetId string = vnet.outputs.vnetSubnets[4].id
+output acaSubnetId string = vnet.outputs.vnetSubnets[5].id

@@ -102,7 +102,7 @@ param documentIntelligenceResourceGroupName string = '' // Set in main.parameter
 // Limited regions for new version:
 // https://learn.microsoft.com/azure/ai-services/document-intelligence/concept-layout
 @description('Location for the Document Intelligence resource group')
-@allowed(['eastus', 'westus2', 'westeurope'])
+@allowed(['eastus2', 'westus2', 'westeurope'])
 @metadata({
   azd: {
     type: 'location'
@@ -412,7 +412,7 @@ module backend 'core/host/appservice.bicep' = if (deploymentTarget == 'appservic
     managedIdentity: true
     virtualNetworkSubnetId: isolation.outputs.appSubnetId
     publicNetworkAccess: publicNetworkAccess
-    allowedOrigins: [allowedOrigin]
+    allowedOrigins: [allowedOrigin, frontend.outputs.uri]
     clientAppId: clientAppId
     serverAppId: serverAppId
     enableUnauthenticatedAccess: enableUnauthenticatedAccess
@@ -422,6 +422,29 @@ module backend 'core/host/appservice.bicep' = if (deploymentTarget == 'appservic
     use32BitWorkerProcess: appServiceSkuName == 'F1'
     alwaysOn: appServiceSkuName != 'F1'
     appSettings: appEnvVariables
+  }
+}
+
+module frontend 'core/host/appservice.bicep' = if (deploymentTarget == 'appservice') {
+  name: 'web-frontend'
+  scope: resourceGroup
+  params: {
+    name: '${abbrs.webSitesAppService}frontend-${resourceToken}'
+    location: location
+    tags: union(tags, { 'azd-service-name': 'frontend' })
+    // Need to check deploymentTarget again due to https://github.com/Azure/bicep/issues/3990
+    appServicePlanId: deploymentTarget == 'appservice' ? appServicePlan.outputs.id : ''
+    runtimeName: 'node'
+    runtimeVersion: '20-lts'
+    appCommandLine: 'pm2 serve /home/site/wwwroot --no-daemon'
+    scmDoBuildDuringDeployment: false
+    managedIdentity: true
+    virtualNetworkSubnetId: isolation.outputs.appSubnetId
+    publicNetworkAccess: publicNetworkAccess
+    enableUnauthenticatedAccess: enableUnauthenticatedAccess
+    disableAppServicesAuthentication: disableAppServicesAuthentication
+    use32BitWorkerProcess: appServiceSkuName == 'F1'
+    alwaysOn: appServiceSkuName != 'F1'
   }
 }
 
@@ -1143,3 +1166,12 @@ output BACKEND_URI string = deploymentTarget == 'appservice' ? backend.outputs.u
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = deploymentTarget == 'containerapps'
   ? containerApps.outputs.registryLoginServer
   : ''
+
+output FRONTEND_APP_SERVICE_NAME string = deploymentTarget == 'appservice' ? frontend.outputs.name : ''
+output FRONTEND_URI string = deploymentTarget == 'appservice' ? frontend.outputs.uri : ''
+
+output AZURE_VNET_NAME string = isolation.outputs.vnetName
+output AZURE_APP_SUBNET_ID string = isolation.outputs.appSubnetId
+output AZURE_BACKEND_SUBNET_ID string = isolation.outputs.backendSubnetId
+output AZURE_APIM_SUBNET_ID string = isolation.outputs.apimSubnetId
+output AZURE_ACA_SUBNET_ID string = isolation.outputs.acaSubnetId

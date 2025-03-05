@@ -60,6 +60,9 @@ export const DisclaimerModal = ({ show, onClose }: Props) => {
                 <div className={contentStyles.body}>
                     <Text>{t("disclaimer")}</Text>
                 </div>
+                <div className={contentStyles.body}>
+                    <Text variant="small">{t("sub_disclaimer")}</Text>
+                </div>
             </Stack>
         </Modal>
     );

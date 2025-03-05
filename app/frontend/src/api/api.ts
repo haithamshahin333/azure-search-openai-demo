@@ -1,4 +1,4 @@
-const BACKEND_URI = "https://APIM-URL/api";
+const BACKEND_URI = "https://APIM/api";
 
 import { ChatAppResponse, ChatAppResponseOrError, ChatAppRequest, Config, SimpleAPIResponse, HistoryListApiResponse, HistroyApiResponse } from "./models";
 import { useLogin, getToken, isUsingAppServicesLogin } from "../authConfig";
@@ -185,6 +185,32 @@ export async function deleteChatHistoryApi(id: string, idToken: string): Promise
 
     if (!response.ok) {
         throw new Error(`Deleting chat history failed: ${response.statusText}`);
+    }
+
+    const dataResponse: any = await response.json();
+    return dataResponse;
+}
+
+export async function logQuestionAndAnswerApi(chatOrder: number, user: string, answer: ChatAppResponse, idToken: string | undefined): Promise<any> {
+    const headers = await getHeaders(idToken);
+
+    const request = {
+        chatIndex: chatOrder,
+        sessionState: answer.session_state,
+        question: user,
+        response: answer
+    }
+
+    // console.log(JSON.stringify(request));
+
+    const response = await fetch(`${BACKEND_URI}/log_response`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify(request)
+    });
+
+    if (!response.ok) {
+        throw new Error(`Logging sentiment failed: ${response.statusText}`);
     }
 
     const dataResponse: any = await response.json();
