@@ -34,7 +34,7 @@
         "errorDeleting": "Error deleting.",
         "fileDeleted": "File deleted"
     },
-    "developerSettings": "Developer settings",
+    "developerSettings": "Category Selection",
 
     "chatEmptyStateTitle": "Chat with your data",
     "chatEmptyStateSubtitle": "Ask anything or try an example",
@@ -85,9 +85,11 @@
         "minimumSearchScore": "Minimum search score",
         "minimumRerankerScore": "Minimum reranker score",
         "retrieveCount": "Retrieve this many search results:",
-        "includeCategory": "Include category",
+        "includeCategory": "Select Knowledge Categories",
         "includeCategoryOptions": {
-            "all": "All"
+            "golf" : "Golf",
+            "tennis" : "Tennis",
+            "basketball" : "Basketball"
         },
         "excludeCategory": "Exclude category",
         "useSemanticRanker": "Use semantic ranker for retrieval",

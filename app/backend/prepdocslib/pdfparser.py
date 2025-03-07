@@ -103,7 +103,7 @@ class DocumentAnalysisParser(Parser):
 
             if file_analyzed is False:
                 poller = await document_intelligence_client.begin_analyze_document(
-                    model_id=self.model_id, analyze_request=content, content_type="application/octet-stream"
+                    model_id=self.model_id, body=content, content_type="application/octet-stream"
                 )
             analyze_result: AnalyzeResult = await poller.result()
 

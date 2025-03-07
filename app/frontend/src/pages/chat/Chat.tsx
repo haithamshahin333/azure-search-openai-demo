@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
-import { Panel, DefaultButton } from "@fluentui/react";
+import { Panel, DefaultButton, Modal, Text, Stack} from "@fluentui/react";
 import readNDJSONStream from "ndjson-readablestream";
 import imgUrl from "../../assets/azure-icon.jpg";
 
@@ -39,11 +39,13 @@ import { LoginContext } from "../../loginContext";
 import { LanguagePicker } from "../../i18n/LanguagePicker";
 import { DisclaimerModal } from "../../components/DisclaimerModal";
 import { Settings } from "../../components/Settings/Settings";
+import { CategorySelection } from "../../components/CategorySelection"
 
 
 const Chat = () => {
     const [showModal, setShowModal] = useState(true);
     const [isConfigPanelOpen, setIsConfigPanelOpen] = useState(false);
+    const [isCategorySelectionOpen, setIsCategorySelectionOpen] = useState(false);
     const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(false);
     const [promptTemplate, setPromptTemplate] = useState<string>("");
     const [temperature, setTemperature] = useState<number>(0.3);
@@ -55,7 +57,7 @@ const Chat = () => {
     const [useSemanticRanker, setUseSemanticRanker] = useState<boolean>(true);
     const [shouldStream, setShouldStream] = useState<boolean>(true);
     const [useSemanticCaptions, setUseSemanticCaptions] = useState<boolean>(false);
-    const [includeCategory, setIncludeCategory] = useState<string>("");
+    const [includeCategory, setIncludeCategory] = useState<string>("golf");
     const [excludeCategory, setExcludeCategory] = useState<string>("");
     const [useSuggestFollowupQuestions, setUseSuggestFollowupQuestions] = useState<boolean>(true);
     const [vectorFieldList, setVectorFieldList] = useState<VectorFieldOptions[]>([VectorFieldOptions.Embedding]);
@@ -278,6 +280,11 @@ const Chat = () => {
         setShowModal(true);
     }, []);
 
+    const handleCategoryChange = (category: string) => {
+        setIncludeCategory(category);
+        setIsCategorySelectionOpen(false);
+    };
+
 
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "smooth" }), [isLoading]);
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "auto" }), [streamedAnswers]);
@@ -389,6 +396,9 @@ const Chat = () => {
                 <title>{t("pageTitle")}</title>
             </Helmet>
             <div className={styles.commandsSplitContainer}>
+                <Text variant="large" className={styles.selectedCategoryText}>
+                            Knowledge Base: <b>{t(`labels.includeCategoryOptions.${includeCategory}`)}</b>
+                </Text>
                 <div className={styles.commandsContainer}>
                     {((useLogin && showChatHistoryCosmos) || showChatHistoryBrowser) && (
                         <HistoryButton className={styles.commandButton} onClick={() => setIsHistoryPanelOpen(!isHistoryPanelOpen)} />
@@ -397,7 +407,7 @@ const Chat = () => {
                 <div className={styles.commandsContainer}>
                     <ClearChatButton className={styles.commandButton} onClick={clearChat} disabled={!lastQuestionRef.current || isLoading} />
                     {showUserUpload && <UploadFile className={styles.commandButton} disabled={!loggedIn} />}
-                    {/* <SettingsButton className={styles.commandButton} onClick={() => setIsConfigPanelOpen(!isConfigPanelOpen)} /> */}
+                    <SettingsButton className={styles.commandButton} onClick={() => setIsCategorySelectionOpen(!isCategorySelectionOpen)} />
                 </div>
             </div>
             <div className={styles.chatRoot} style={{ marginLeft: isHistoryPanelOpen ? "300px" : "0" }}>
@@ -546,7 +556,7 @@ const Chat = () => {
                     onRenderFooterContent={() => <DefaultButton onClick={() => setIsConfigPanelOpen(false)}>{t("labels.closeButton")}</DefaultButton>}
                     isFooterAtBottom={true}
                 >
-                    <Settings
+                    {/* <Settings
                         promptTemplate={promptTemplate}
                         temperature={temperature}
                         retrieveCount={retrieveCount}
@@ -573,9 +583,20 @@ const Chat = () => {
                         useSuggestFollowupQuestions={useSuggestFollowupQuestions}
                         showSuggestFollowupQuestions={true}
                         onChange={handleSettingsChange}
-                    />
-                    {useLogin && <TokenClaimsDisplay />}
+                    /> */}
+                    {/* {useLogin && <TokenClaimsDisplay />}
+                    {useLogin && <TokenClaimsDisplay />} */}
                 </Panel>
+                <Modal
+                    isOpen={isCategorySelectionOpen}
+                    onDismiss={() => setIsCategorySelectionOpen(false)}
+                    isBlocking={false}
+                >
+                    <CategorySelection
+                        selectedCategory={includeCategory}
+                        onCategoryChange={handleCategoryChange}
+                    />
+                </Modal>
             </div>
         </div>
     );

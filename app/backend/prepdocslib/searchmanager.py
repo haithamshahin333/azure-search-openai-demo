@@ -254,35 +254,46 @@ class SearchManager:
                         )
 
     async def update_content(
-        self, sections: List[Section], image_embeddings: Optional[List[List[float]]] = None, url: Optional[str] = None
-    ):
+        self,
+        sections: List[Section],
+        image_embeddings: Optional[List[List[float]]] = None,
+        url: Optional[str] = None
+    ) -> List[str]:
+        """
+        Updates the search index with the given sections, returning the chunk IDs used as the documents' 'id'.
+        """
         MAX_BATCH_SIZE = 1000
         section_batches = [sections[i : i + MAX_BATCH_SIZE] for i in range(0, len(sections), MAX_BATCH_SIZE)]
+        all_chunk_ids: List[str] = []
 
         async with self.search_info.create_search_client() as search_client:
             for batch_index, batch in enumerate(section_batches):
-                documents = [
-                    {
-                        "id": f"{section.content.filename_to_id()}-page-{section_index + batch_index * MAX_BATCH_SIZE}",
-                        "content": section.split_page.text,
-                        "category": section.category,
-                        "filename": os.path.basename(section.content.filename()),
-                        "sourcepage": (
-                            BlobManager.blob_image_name_from_file_page(
-                                filename=section.content.filename(),
-                                page=section.split_page.page_num,
-                            )
-                            if image_embeddings
-                            else BlobManager.sourcepage_from_file_page(
-                                filename=section.content.filename(),
-                                page=section.split_page.page_num,
-                            )
-                        ),
-                        "sourcefile": section.content.filename(),
-                        **section.content.acls,
-                    }
-                    for section_index, section in enumerate(batch)
-                ]
+                documents = []
+                for section_index, section in enumerate(batch):
+                    chunk_id = f"{section.content.filename_to_id()}-chunk-{section_index + batch_index * MAX_BATCH_SIZE}"
+                    documents.append(
+                        {
+                            "id": chunk_id,
+                            "content": section.split_page.text,
+                            "category": section.category,
+                            "filename": os.path.basename(section.content.filename()),
+                            "sourcepage": (
+                                BlobManager.blob_image_name_from_file_page(
+                                    filename=section.content.filename(),
+                                    page=section.split_page.page_num,
+                                )
+                                if image_embeddings
+                                else BlobManager.sourcepage_from_file_page(
+                                    filename=section.content.filename(),
+                                    page=section.split_page.page_num,
+                                )
+                            ),
+                            "sourcefile": section.content.filename(),
+                            **section.content.acls,
+                        }
+                    )
+                    all_chunk_ids.append(chunk_id)
+
                 if url:
                     for document in documents:
                         document["storageUrl"] = url
@@ -298,6 +309,11 @@ class SearchManager:
 
                 await search_client.upload_documents(documents)
 
+        logger.info(
+            "Updated search index '%s' with %d sections from %d files", self.search_info.index_name, len(sections), len(section_batches)
+        )
+        return all_chunk_ids
+
     async def remove_content(self, path: Optional[str] = None, only_oid: Optional[str] = None):
         logger.info(
             "Removing sections from '{%s or '<all>'}' from search index '%s'", path, self.search_info.index_name
@@ -308,8 +324,8 @@ class SearchManager:
                 if path is not None:
                     # Replace ' with '' to escape the single quote for the filter
                     # https://learn.microsoft.com/azure/search/query-odata-filter-orderby-syntax#escaping-special-characters-in-string-constants
-                    path_for_filter = os.path.basename(path).replace("'", "''")
-                    filter = f"filename eq '{path_for_filter}'"
+                    path_for_filter = path.replace("'", "''")
+                    filter = f"sourcefile eq '{path_for_filter}'"
                 max_results = 1000
                 result = await search_client.search(
                     search_text="", filter=filter, top=max_results, include_total_count=True

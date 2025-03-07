@@ -2,16 +2,17 @@ import argparse
 import asyncio
 import logging
 import os
-from typing import Optional, Union
+from typing import List, Optional, Union
 from dotenv import load_dotenv
 
 from azure.core.credentials import AzureKeyCredential
 from azure.core.credentials_async import AsyncTokenCredential
-from azure.identity.aio import AzureDeveloperCliCredential, get_bearer_token_provider
+from azure.identity.aio import DefaultAzureCredential, AzureDeveloperCliCredential, get_bearer_token_provider
 from rich.logging import RichHandler
 
 from load_azd_env import load_azd_env
 from prepdocslib.blobmanager import BlobManager
+from prepdocslib.cosmosstatusmanager import CosmosStatusManager
 from prepdocslib.csvparser import CsvParser
 from prepdocslib.embeddings import (
     AzureOpenAIEmbeddingService,
@@ -80,6 +81,24 @@ def setup_blob_manager(
         subscriptionId=subscription_id,
         store_page_images=search_images,
     )
+
+# cosmos status manager
+
+def setup_cosmos_status_manager(
+    azure_credential: AsyncTokenCredential,
+    cosmos_endpoint: str,
+    database_name: str,
+    container_name: str,
+    cosmos_key: Union[str, None] = None,
+):
+    cosmos_creds: Union[AsyncTokenCredential, str] = azure_credential if cosmos_key is None else cosmos_key
+    return CosmosStatusManager(
+        cosmos_endpoint=cosmos_endpoint,
+        cosmos_credential=cosmos_creds,
+        database_name=database_name,
+        container_name=container_name,
+    )
+    
 
 
 def setup_list_file_strategy(
@@ -270,13 +289,6 @@ async def process_documents(args):
         # to avoid seeing the noisy INFO level logs from the Azure SDKs
         logger.setLevel(logging.DEBUG)
 
-    try:
-        logger.info("Loading azd env")
-        load_azd_env()
-    except Exception as e:
-        logger.error("Error loading azd env: %s", e)
-        load_dotenv()
-
     if os.getenv("AZURE_PUBLIC_NETWORK_ACCESS") == "Disabled":
         logger.error("AZURE_PUBLIC_NETWORK_ACCESS is set to Disabled. Exiting.")
         exit(0)
@@ -287,123 +299,129 @@ async def process_documents(args):
     dont_use_vectors = os.getenv("USE_VECTORS", "").lower() == "false"
     use_content_understanding = os.getenv("USE_MEDIA_DESCRIBER_AZURE_CU", "").lower() == "true"
 
-    if tenant_id := os.getenv("AZURE_TENANT_ID"):
-        logger.info("Connecting to Azure services using the azd credential for tenant %s", tenant_id)
-        azd_credential = AzureDeveloperCliCredential(tenant_id=tenant_id, process_timeout=60)
-    else:
-        logger.info("Connecting to Azure services using the azd credential for home tenant")
-        azd_credential = AzureDeveloperCliCredential(process_timeout=60)
 
-    if args.removeall:
-        document_action = DocumentAction.RemoveAll
-    elif args.remove:
-        document_action = DocumentAction.Remove
-    else:
-        document_action = DocumentAction.Add
+    azd_credential = DefaultAzureCredential(process_timeout=60)
 
-    search_info = await setup_search_info(
-        search_service=os.environ["AZURE_SEARCH_SERVICE"],
-        index_name=os.environ["AZURE_SEARCH_INDEX"],
-        azure_credential=azd_credential,
-        search_key=clean_key_if_exists(args.searchkey),
-    )
-    blob_manager = setup_blob_manager(
-        azure_credential=azd_credential,
-        storage_account=os.environ["AZURE_STORAGE_ACCOUNT"],
-        storage_container=os.environ["AZURE_STORAGE_CONTAINER"],
-        storage_resource_group=os.environ["AZURE_STORAGE_RESOURCE_GROUP"],
-        subscription_id=os.environ["AZURE_SUBSCRIPTION_ID"],
-        search_images=use_gptvision,
-        storage_key=clean_key_if_exists(args.storagekey),
-    )
-    list_file_strategy = setup_list_file_strategy(
-        azure_credential=azd_credential,
-        local_files=args.files,
-        datalake_storage_account=os.getenv("AZURE_ADLS_GEN2_STORAGE_ACCOUNT"),
-        datalake_filesystem=os.getenv("AZURE_ADLS_GEN2_FILESYSTEM"),
-        datalake_path=os.getenv("AZURE_ADLS_GEN2_FILESYSTEM_PATH"),
-        datalake_key=clean_key_if_exists(args.datalakekey),
-        storage_account_name=os.getenv("AZURE_STORAGE_ACCOUNT_KB_NAME"),
-        storage_container_name=os.getenv("AZURE_STORAGE_CONTAINER_KB_NAME"),
-        storage_key=clean_key_if_exists(args.storagekey),
-        storage_blob_url=args.bloburl
-    )
+    async with azd_credential:
 
-    openai_host = os.environ["OPENAI_HOST"]
-    openai_key = None
-    if os.getenv("AZURE_OPENAI_API_KEY_OVERRIDE"):
-        openai_key = os.getenv("AZURE_OPENAI_API_KEY_OVERRIDE")
-    elif not openai_host.startswith("azure") and os.getenv("OPENAI_API_KEY"):
-        openai_key = os.getenv("OPENAI_API_KEY")
+        if args.removeall:
+            document_action = DocumentAction.RemoveAll
+        elif args.remove:
+            document_action = DocumentAction.Remove
+        else:
+            document_action = DocumentAction.Add
 
-    openai_dimensions = 1536
-    if os.getenv("AZURE_OPENAI_EMB_DIMENSIONS"):
-        openai_dimensions = int(os.environ["AZURE_OPENAI_EMB_DIMENSIONS"])
-    openai_embeddings_service = setup_embeddings_service(
-        azure_credential=azd_credential,
-        openai_host=openai_host,
-        openai_model_name=os.environ["AZURE_OPENAI_EMB_MODEL_NAME"],
-        openai_service=os.getenv("AZURE_OPENAI_SERVICE"),
-        openai_custom_url=os.getenv("AZURE_OPENAI_CUSTOM_URL"),
-        openai_deployment=os.getenv("AZURE_OPENAI_EMB_DEPLOYMENT"),
-        openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION") or "2024-06-01",
-        openai_dimensions=openai_dimensions,
-        openai_key=clean_key_if_exists(openai_key),
-        openai_org=os.getenv("OPENAI_ORGANIZATION"),
-        disable_vectors=dont_use_vectors,
-        disable_batch_vectors=args.disablebatchvectors,
-    )
-
-    ingestion_strategy: Strategy
-    if use_int_vectorization:
-        if not openai_embeddings_service or not isinstance(openai_embeddings_service, AzureOpenAIEmbeddingService):
-            raise Exception("Integrated vectorization strategy requires an Azure OpenAI embeddings service")
-
-        ingestion_strategy = IntegratedVectorizerStrategy(
-            search_info=search_info,
-            list_file_strategy=list_file_strategy,
-            blob_manager=blob_manager,
-            document_action=document_action,
-            embeddings=openai_embeddings_service,
+        search_info = await setup_search_info(
+            search_service=os.environ["AZURE_SEARCH_SERVICE"],
+            index_name=os.environ["AZURE_SEARCH_INDEX"],
+            azure_credential=azd_credential,
+            search_key=clean_key_if_exists(args.searchkey),
+        )
+        blob_manager = setup_blob_manager(
+            azure_credential=azd_credential,
+            storage_account=os.environ["AZURE_STORAGE_ACCOUNT"],
+            storage_container=os.environ["AZURE_STORAGE_CONTAINER"],
+            storage_resource_group=os.environ["AZURE_STORAGE_RESOURCE_GROUP"],
             subscription_id=os.environ["AZURE_SUBSCRIPTION_ID"],
-            search_service_user_assigned_id=args.searchserviceassignedid,
-            search_analyzer_name=os.getenv("AZURE_SEARCH_ANALYZER_NAME"),
-            use_acls=use_acls,
-            category=args.category,
-        )
-    else:
-        file_processors = setup_file_processors(
-            azure_credential=azd_credential,
-            document_intelligence_service=os.getenv("AZURE_DOCUMENTINTELLIGENCE_SERVICE"),
-            document_intelligence_key=clean_key_if_exists(args.documentintelligencekey),
-            local_pdf_parser=os.getenv("USE_LOCAL_PDF_PARSER") == "true",
-            local_html_parser=os.getenv("USE_LOCAL_HTML_PARSER") == "true",
             search_images=use_gptvision,
-            use_content_understanding=use_content_understanding,
-            content_understanding_endpoint=os.getenv("AZURE_CONTENTUNDERSTANDING_ENDPOINT"),
+            storage_key=clean_key_if_exists(args.storagekey),
         )
-        image_embeddings_service = setup_image_embeddings_service(
+        cosmos_manager = setup_cosmos_status_manager(
             azure_credential=azd_credential,
-            vision_endpoint=os.getenv("AZURE_VISION_ENDPOINT"),
-            search_images=use_gptvision,
+            cosmos_endpoint=os.environ["AZURE_COSMOS_ENDPOINT"],
+            cosmos_key=None,
+            database_name=os.environ["AZURE_COSMOS_DATABASE"],
+            container_name=os.environ["AZURE_COSMOS_CONTAINER"],
+        )
+        list_file_strategy = setup_list_file_strategy(
+            azure_credential=azd_credential,
+            local_files=args.files,
+            datalake_storage_account=os.getenv("AZURE_ADLS_GEN2_STORAGE_ACCOUNT"),
+            datalake_filesystem=os.getenv("AZURE_ADLS_GEN2_FILESYSTEM"),
+            datalake_path=os.getenv("AZURE_ADLS_GEN2_FILESYSTEM_PATH"),
+            datalake_key=clean_key_if_exists(args.datalakekey),
+            storage_account_name=os.getenv("AZURE_STORAGE_ACCOUNT_KB_NAME"),
+            storage_container_name=os.getenv("AZURE_STORAGE_CONTAINER_KB_NAME"),
+            storage_key=clean_key_if_exists(args.storagekey),
+            storage_blob_url=args.bloburl
         )
 
-        ingestion_strategy = FileStrategy(
-            search_info=search_info,
-            list_file_strategy=list_file_strategy,
-            blob_manager=blob_manager,
-            file_processors=file_processors,
-            document_action=document_action,
-            embeddings=openai_embeddings_service,
-            image_embeddings=image_embeddings_service,
-            search_analyzer_name=os.getenv("AZURE_SEARCH_ANALYZER_NAME"),
-            use_acls=use_acls,
-            category=args.category,
-            use_content_understanding=use_content_understanding,
-            content_understanding_endpoint=os.getenv("AZURE_CONTENTUNDERSTANDING_ENDPOINT"),
+        openai_host = os.environ["OPENAI_HOST"]
+        openai_key = None
+        if os.getenv("AZURE_OPENAI_API_KEY_OVERRIDE"):
+            openai_key = os.getenv("AZURE_OPENAI_API_KEY_OVERRIDE")
+        elif not openai_host.startswith("azure") and os.getenv("OPENAI_API_KEY"):
+            openai_key = os.getenv("OPENAI_API_KEY")
+
+        openai_dimensions = 1536
+        if os.getenv("AZURE_OPENAI_EMB_DIMENSIONS"):
+            openai_dimensions = int(os.environ["AZURE_OPENAI_EMB_DIMENSIONS"])
+        openai_embeddings_service = setup_embeddings_service(
+            azure_credential=azd_credential,
+            openai_host=openai_host,
+            openai_model_name=os.environ["AZURE_OPENAI_EMB_MODEL_NAME"],
+            openai_service=os.getenv("AZURE_OPENAI_SERVICE"),
+            openai_custom_url=os.getenv("AZURE_OPENAI_CUSTOM_URL"),
+            openai_deployment=os.getenv("AZURE_OPENAI_EMB_DEPLOYMENT"),
+            openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION") or "2024-06-01",
+            openai_dimensions=openai_dimensions,
+            openai_key=clean_key_if_exists(openai_key),
+            openai_org=os.getenv("OPENAI_ORGANIZATION"),
+            disable_vectors=dont_use_vectors,
+            disable_batch_vectors=args.disablebatchvectors,
         )
 
-    await main(ingestion_strategy, setup_index=not args.remove and not args.removeall)
+        ingestion_strategy: Strategy
+        if use_int_vectorization:
+            if not openai_embeddings_service or not isinstance(openai_embeddings_service, AzureOpenAIEmbeddingService):
+                raise Exception("Integrated vectorization strategy requires an Azure OpenAI embeddings service")
+
+            ingestion_strategy = IntegratedVectorizerStrategy(
+                search_info=search_info,
+                list_file_strategy=list_file_strategy,
+                blob_manager=blob_manager,
+                document_action=document_action,
+                embeddings=openai_embeddings_service,
+                subscription_id=os.environ["AZURE_SUBSCRIPTION_ID"],
+                search_service_user_assigned_id=args.searchserviceassignedid,
+                search_analyzer_name=os.getenv("AZURE_SEARCH_ANALYZER_NAME"),
+                use_acls=use_acls,
+                category=args.category,
+            )
+        else:
+            file_processors = setup_file_processors(
+                azure_credential=azd_credential,
+                document_intelligence_service=os.getenv("AZURE_DOCUMENTINTELLIGENCE_SERVICE"),
+                document_intelligence_key=clean_key_if_exists(args.documentintelligencekey),
+                local_pdf_parser=os.getenv("USE_LOCAL_PDF_PARSER") == "true",
+                local_html_parser=os.getenv("USE_LOCAL_HTML_PARSER") == "true",
+                search_images=use_gptvision,
+                use_content_understanding=use_content_understanding,
+                content_understanding_endpoint=os.getenv("AZURE_CONTENTUNDERSTANDING_ENDPOINT"),
+            )
+            image_embeddings_service = setup_image_embeddings_service(
+                azure_credential=azd_credential,
+                vision_endpoint=os.getenv("AZURE_VISION_ENDPOINT"),
+                search_images=use_gptvision,
+            )
+
+            ingestion_strategy = FileStrategy(
+                search_info=search_info,
+                list_file_strategy=list_file_strategy,
+                blob_manager=blob_manager,
+                file_processors=file_processors,
+                document_action=document_action,
+                embeddings=openai_embeddings_service,
+                image_embeddings=image_embeddings_service,
+                search_analyzer_name=os.getenv("AZURE_SEARCH_ANALYZER_NAME"),
+                use_acls=use_acls,
+                category=args.category,
+                use_content_understanding=use_content_understanding,
+                content_understanding_endpoint=os.getenv("AZURE_CONTENTUNDERSTANDING_ENDPOINT"),
+                cosmos_manager=cosmos_manager,
+            )
+
+        await main(ingestion_strategy, setup_index=not args.remove and not args.removeall)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,11 @@
     display: flex;
 }
 
+.selectedCategoryText {
+    margin-left: 10px;
+    align-self: center;
+}
+
 .chatContainer {
     flex: 1;
     display: flex;
