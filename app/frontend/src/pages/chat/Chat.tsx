@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
-import { Panel, DefaultButton, Modal, Text, Stack} from "@fluentui/react";
+import { Panel, DefaultButton, Modal, Text, Stack, TextField } from "@fluentui/react";
 import readNDJSONStream from "ndjson-readablestream";
 import imgUrl from "../../assets/azure-icon.jpg";
 
@@ -39,8 +39,7 @@ import { LoginContext } from "../../loginContext";
 import { LanguagePicker } from "../../i18n/LanguagePicker";
 import { DisclaimerModal } from "../../components/DisclaimerModal";
 import { Settings } from "../../components/Settings/Settings";
-import { CategorySelection } from "../../components/CategorySelection"
-
+import { CategorySelection } from "../../components/CategorySelection";
 
 const Chat = () => {
     const [showModal, setShowModal] = useState(true);
@@ -177,7 +176,7 @@ const Chat = () => {
     const historyManager = useHistoryManager(historyProvider);
 
     const makeApiRequest = async (question: string) => {
-        console.log("making api request...")
+        console.log("making api request...");
         lastQuestionRef.current = question;
 
         error && setError(undefined);
@@ -253,7 +252,7 @@ const Chat = () => {
         } catch (e) {
             setError(e);
         } finally {
-            console.log("no longer loading...")
+            console.log("no longer loading...");
             //log the final element of the answers array
             setIsLoading(false);
         }
@@ -284,7 +283,6 @@ const Chat = () => {
         setIncludeCategory(category);
         setIsCategorySelectionOpen(false);
     };
-
 
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "smooth" }), [isLoading]);
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "auto" }), [streamedAnswers]);
@@ -356,12 +354,12 @@ const Chat = () => {
     };
 
     // Add the updateSentiment function
-    const updateSentiment = async (index: number, sentiment: 'positive' | 'negative') => {
+    const updateSentiment = async (index: number, sentiment: string) => {
         const updatedAnswers = [...answers];
         const token = client ? await getToken(client) : undefined;
         updatedAnswers[index][1].sentiment = sentiment;
         setAnswers(updatedAnswers);
-        await logQuestionAndAnswerApi(index, updatedAnswers[index][0], updatedAnswers[index][1], token)
+        await logQuestionAndAnswerApi(index, updatedAnswers[index][0], updatedAnswers[index][1], token);
     };
 
     const onShowCitation = (citation: string, index: number) => {
@@ -385,7 +383,18 @@ const Chat = () => {
         setSelectedAnswer(index);
     };
 
+    // Add these new state variables
+    const [showNegativeFeedbackModalIndex, setShowNegativeFeedbackModalIndex] = useState<number | null>(null);
+    const [negativeFeedback, setNegativeFeedback] = useState("");
 
+    // Add this handler for submitting negative feedback
+    const handleNegativeFeedbackSubmit = () => {
+        if (showNegativeFeedbackModalIndex !== null) {
+            updateSentiment(showNegativeFeedbackModalIndex, `negative: ${negativeFeedback}`);
+            setShowNegativeFeedbackModalIndex(null);
+            setNegativeFeedback("");
+        }
+    };
 
     const { t, i18n } = useTranslation();
 
@@ -397,7 +406,7 @@ const Chat = () => {
             </Helmet>
             <div className={styles.commandsSplitContainer}>
                 <Text variant="large" className={styles.selectedCategoryText}>
-                            Knowledge Base: <b>{t(`labels.includeCategoryOptions.${includeCategory}`)}</b>
+                    Knowledge Base: <b>{t(`labels.includeCategoryOptions.${includeCategory}`)}</b>
                 </Text>
                 <div className={styles.commandsContainer}>
                     {((useLogin && showChatHistoryCosmos) || showChatHistoryBrowser) && (
@@ -411,7 +420,7 @@ const Chat = () => {
                 </div>
             </div>
             <div className={styles.chatRoot} style={{ marginLeft: isHistoryPanelOpen ? "300px" : "0" }}>
-            <DisclaimerModal show={showModal} onClose={handleCloseModal} />
+                <DisclaimerModal show={showModal} onClose={handleCloseModal} />
                 <div className={styles.chatContainer}>
                     {!lastQuestionRef.current ? (
                         <div className={styles.chatEmptyState}>
@@ -476,14 +485,14 @@ const Chat = () => {
                                                     <span>Is this response helpful?</span>
                                                 </div>
                                                 <button
-                                                    className={`${styles.sentimentButton} ${answer[1].sentiment === 'thumbsUp' ? styles.selected : ''}`}
-                                                    onClick={() => updateSentiment(index, 'positive')}
+                                                    className={`${styles.sentimentButton} ${answer[1].sentiment === "thumbsUp" ? styles.selected : ""}`}
+                                                    onClick={() => updateSentiment(index, "positive")}
                                                 >
                                                     👍
                                                 </button>
                                                 <button
-                                                    className={`${styles.sentimentButton} ${answer[1].sentiment === 'thumbsDown' ? styles.selected : ''}`}
-                                                    onClick={() => updateSentiment(index, 'negative')}
+                                                    className={`${styles.sentimentButton} ${answer[1].sentiment === "thumbsDown" ? styles.selected : ""}`}
+                                                    onClick={() => setShowNegativeFeedbackModalIndex(index)}
                                                 >
                                                     👎
                                                 </button>
@@ -587,16 +596,21 @@ const Chat = () => {
                     {/* {useLogin && <TokenClaimsDisplay />}
                     {useLogin && <TokenClaimsDisplay />} */}
                 </Panel>
-                <Modal
-                    isOpen={isCategorySelectionOpen}
-                    onDismiss={() => setIsCategorySelectionOpen(false)}
-                    isBlocking={false}
-                >
-                    <CategorySelection
-                        selectedCategory={includeCategory}
-                        onCategoryChange={handleCategoryChange}
-                    />
+                <Modal isOpen={isCategorySelectionOpen} onDismiss={() => setIsCategorySelectionOpen(false)} isBlocking={false}>
+                    <CategorySelection selectedCategory={includeCategory} onCategoryChange={handleCategoryChange} />
                 </Modal>
+                {showNegativeFeedbackModalIndex !== null && (
+                    <Modal isOpen={showNegativeFeedbackModalIndex !== null} onDismiss={() => setShowNegativeFeedbackModalIndex(null)} isBlocking={false}>
+                        <Stack tokens={{ childrenGap: 15, padding: 15 }}>
+                            <Text>Please share your feedback on why this response wasn't helpful:</Text>
+                            <TextField value={negativeFeedback} onChange={(e, newValue) => setNegativeFeedback(newValue || "")} multiline rows={3} />
+                            <Stack horizontal tokens={{ childrenGap: 10 }}>
+                                <DefaultButton onClick={handleNegativeFeedbackSubmit} text="Submit" />
+                                <DefaultButton onClick={() => setShowNegativeFeedbackModalIndex(null)} text="Cancel" />
+                            </Stack>
+                        </Stack>
+                    </Modal>
+                )}
             </div>
         </div>
     );
