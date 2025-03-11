@@ -7,6 +7,7 @@ You should typically enable these features before running `azd up`. Once you've 
 * [Using GPT-4](#using-gpt-4)
 * [Using text-embedding-3 models](#using-text-embedding-3-models)
 * [Enabling GPT-4 Turbo with Vision](#enabling-gpt-4-turbo-with-vision)
+* [Enabling media description with Azure Content Understanding](#enabling-media-description-with-azure-content-understanding)
 * [Enabling client-side chat history](#enabling-client-side-chat-history)
 * [Enabling persistent chat history with Azure Cosmos DB](#enabling-persistent-chat-history-with-azure-cosmos-db)
 * [Enabling language picker](#enabling-language-picker)
@@ -105,7 +106,7 @@ Execute the following commands inside your terminal:
 > * `azd env set AZURE_OPENAI_CHATGPT_MODEL gpt-35-turbo` to set the name of your old GPT 3.5 model.
 > * `azd env set AZURE_OPENAI_CHATGPT_DEPLOYMENT_CAPACITY 30` to set the capacity of your old GPT 3.5 deployment.
 > * `azd env set AZURE_OPENAI_CHATGPT_DEPLOYMENT_SKU Standard` to set the Sku name back to Standard.
-> * `azd env set AZURE_OPENAI_CHATGPT_DEPLOYMENT_VERSION 0613` to set the version number of your old GPT 3.5.
+> * `azd env set AZURE_OPENAI_CHATGPT_DEPLOYMENT_VERSION 0125` to set the version number of your old GPT 3.5.
 > * `azd up` to update the provisioned resources.
 >
 > Note that this does not delete your GPT-4 deployment; it just makes your application create a new or reuse an old GPT 3.5 deployment. If you want to delete it, you can go to your Azure OpenAI studio and do so.
@@ -149,9 +150,36 @@ If you have already deployed:
 
 ## Enabling GPT-4 Turbo with Vision
 
+⚠️ This feature is not currently compatible with [integrated vectorization](#enabling-integrated-vectorization).
+
 This section covers the integration of GPT-4 Vision with Azure AI Search. Learn how to enhance your search capabilities with the power of image and text indexing, enabling advanced search functionalities over diverse document types. For a detailed guide on setup and usage, visit our [Enabling GPT-4 Turbo with Vision](gpt4v.md) page.
 
+## Enabling media description with Azure Content Understanding
+
+⚠️ This feature is not currently compatible with [integrated vectorization](#enabling-integrated-vectorization).
+It is compatible with [GPT vision integration](./gpt4v.md), but the features provide similar functionality.
+
+By default, if your documents contain image-like figures, the data ingestion process will ignore those figures,
+so users will not be able to ask questions about them.
+
+You can optionably enable the description of media content using Azure Content Understanding. When enabled, the data ingestion process will send figures to Azure Content Understanding and replace the figure with the description in the indexed document.
+
+To enable media description with Azure Content Understanding, run:
+
+```shell
+azd env set USE_MEDIA_DESCRIBER_AZURE_CU true
+```
+
+If you have already run `azd up`, you will need to run `azd provision` to create the new Content Understanding service.
+If you have already indexed your documents and want to re-index them with the media descriptions,
+first [remove the existing documents](./data_ingestion.md#removing-documents) and then [re-ingest the data](./data_ingestion.md#indexing-additional-documents).
+
+⚠️ This feature does not yet support DOCX, PPTX, or XLSX formats. If you have figures in those formats, they will be ignored.
+Convert them first to PDF or image formats to enable media description.
+
 ## Enabling client-side chat history
+
+[📺 Watch: (RAG Deep Dive series) Storing chat history](https://www.youtube.com/watch?v=1YiTFnnLVIA)
 
 This feature allows users to view the chat history of their conversation, stored in the browser using [IndexedDB](https://developer.mozilla.org/docs/Web/API/IndexedDB_API). That means the chat history will be available only on the device where the chat was initiated. To enable browser-stored chat history, run:
 
@@ -160,6 +188,8 @@ azd env set USE_CHAT_HISTORY_BROWSER true
 ```
 
 ## Enabling persistent chat history with Azure Cosmos DB
+
+[📺 Watch: (RAG Deep Dive series) Storing chat history](https://www.youtube.com/watch?v=1YiTFnnLVIA)
 
 This feature allows authenticated users to view the chat history of their conversations, stored in the server-side storage using [Azure Cosmos DB](https://learn.microsoft.com/azure/cosmos-db/).This option requires that authentication be enabled. The chat history will be persistent and accessible from any device where the user logs in with the same account. To enable server-stored chat history, run:
 
@@ -215,6 +245,8 @@ azd env set USE_SPEECH_OUTPUT_BROWSER true
 
 ## Enabling Integrated Vectorization
 
+⚠️ This feature is not currently compatible with the [GPT vision integration](./gpt4v.md).
+
 Azure AI search recently introduced an [integrated vectorization feature in preview mode](https://techcommunity.microsoft.com/blog/azure-ai-services-blog/announcing-the-public-preview-of-integrated-vectorization-in-azure-ai-search/3960809). This feature is a cloud-based approach to data ingestion, which takes care of document format cracking, data extraction, chunking, vectorization, and indexing, all with Azure technologies.
 
 To enable integrated vectorization with this sample:
@@ -237,8 +269,6 @@ To enable integrated vectorization with this sample:
     If you haven't deployed your app yet, then you should run the full `azd up` after configuring all optional features.
 
 4. You can view the resources such as the indexer and skillset in Azure Portal and monitor the status of the vectorization process.
-
-⚠️ This feature is not currently compatible with the [GPT vision integration](./gpt4v.md).
 
 ## Enabling authentication
 

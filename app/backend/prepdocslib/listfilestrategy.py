@@ -40,17 +40,25 @@ class File:
         return os.path.splitext(self.content.name)[1]
 
     def filename_to_id(self):
-        raw_filename = os.path.basename(self.filename())
-        filename_ascii = re.sub("[^0-9a-zA-Z_-]", "_", raw_filename)
-        filename_hash = base64.b16encode(raw_filename.encode("utf-8")).decode("ascii")
+        raw_filename = self.filename()
+        filename_hash = hashlib.sha256(raw_filename.encode("utf-8")).hexdigest()
         acls_hash = ""
         if self.acls:
-            acls_hash = base64.b16encode(str(self.acls).encode("utf-8")).decode("ascii")
-        return f"file-{filename_ascii}-{filename_hash}{acls_hash}"
+            acls_hash = hashlib.sha256(str(self.acls).encode("utf-8")).hexdigest()
+        return f"file-{filename_hash}"
 
     def close(self):
         if self.content:
             self.content.close()
+
+        if self.blob_name:
+            try:
+                temp_file_path = os.path.join(tempfile.gettempdir(), self.blob_name)
+                if os.path.exists(temp_file_path):
+                    logger.info(f"Deleting blob file at {temp_file_path}")
+                    os.remove(temp_file_path)
+            except Exception as e:
+                logger.error(f"Error deleting blob file {self.blob_name}: {e}")
 
 
 class ListFileStrategy(ABC):
@@ -84,7 +92,7 @@ class BlobListFileStrategy(ListFileStrategy):
         self.credential = credential
 
     async def list_paths(self) -> AsyncGenerator[str, None]:
-        yield self.blob_url
+        yield self.extract_blob_name()
 
     def extract_blob_name(self):
         prefix = f"https://{self.storage_account}.blob.core.windows.net/{self.storage_container}/"
