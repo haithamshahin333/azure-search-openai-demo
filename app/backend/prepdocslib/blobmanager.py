@@ -150,6 +150,7 @@ class BlobManager:
         async with BlobServiceClient(
             account_url=self.endpoint, credential=self.credential
         ) as service_client, service_client.get_container_client(self.container) as container_client:
+            logger.info("Starting code to remove blob %s", path)
             if not await container_client.exists():
                 return
             if path is None:
@@ -158,14 +159,14 @@ class BlobManager:
             else:
                 prefix = os.path.splitext(os.path.basename(path))[0]
                 blobs = container_client.list_blob_names(name_starts_with=os.path.splitext(os.path.basename(prefix))[0])
+                logger.info("Found blob %s to be removed", path)
             async for blob_path in blobs:
                 # This still supports PDFs split into individual pages, but we could remove in future to simplify code
-                if (
-                    prefix is not None
-                    and (
-                        not re.match(rf"{prefix}-\d+\.pdf", blob_path) or not re.match(rf"{prefix}-\d+\.png", blob_path)
-                    )
-                ) or (path is not None and blob_path == os.path.basename(path)):
+                if (path is not None and blob_path != os.path.basename(path)):
+                    logger.info("Blob %s does not match prefix %s, skipping", blob_path, prefix)
+                    logger.info("The path basename is %s", os.path.basename(path))
+                    # print result of blob_path != os.path.basename(path)
+                    logger.info("The result of the comparison is %s", blob_path != os.path.basename(path))
                     continue
                 logger.info("Removing blob %s", blob_path)
                 await container_client.delete_blob(blob_path)

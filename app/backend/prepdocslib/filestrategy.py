@@ -131,7 +131,8 @@ class FileStrategy(Strategy):
         elif self.document_action == DocumentAction.Remove:
             paths = self.list_file_strategy.list_paths()
             async for path in paths:
-                await self.blob_manager.remove_blob(path)
+                logger.info("Removing file %s", path)
+                await self.blob_manager.remove_blob(os.path.basename(path))
                 await search_manager.remove_content(path)
                 if self.cosmos_manager:
                     await self.cosmos_manager.log_file_removed(path)
