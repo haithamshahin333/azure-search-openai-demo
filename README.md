@@ -12,6 +12,7 @@ products:
 - azure-cognitive-search
 - azure-app-service
 - azure
+- easyauth
 page_type: sample
 urlFragment: azure-search-openai-demo
 ---
