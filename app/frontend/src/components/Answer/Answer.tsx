@@ -100,7 +100,7 @@ export const Answer = ({
                             <SpeechOutputAzure answer={sanitizedAnswerHtml} index={index} speechConfig={speechConfig} isStreaming={isStreaming} />
                         )}
                         {showSpeechOutputBrowser && <SpeechOutputBrowser answer={sanitizedAnswerHtml} />}
-                            {selectedSentiment === "positive" ? (
+                            {selectedSentiment?.startsWith("positive") ? (
                                 <IconButton
                                     style={{ color: "blue" }}
                                     iconProps={{ iconName: "Like" }}
@@ -108,7 +108,7 @@ export const Answer = ({
                                     ariaLabel="Thumbs Up"
                                     disabled
                                 />
-                            ) : selectedSentiment === "negative" ? (
+                            ) : selectedSentiment?.startsWith("negative") ? (
                                 <IconButton
                                     style={{ color: "blue" }}
                                     iconProps={{ iconName: "Dislike" }}

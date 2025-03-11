@@ -1,12 +1,17 @@
 import logging
 from typing import List, Optional
 
+from azure.core.credentials import AzureKeyCredential
+
 from .blobmanager import BlobManager
+from .cosmosstatusmanager import CosmosStatusManager
 from .embeddings import ImageEmbeddings, OpenAIEmbeddings
 from .fileprocessor import FileProcessor
 from .listfilestrategy import File, ListFileStrategy
+from .mediadescriber import ContentUnderstandingDescriber
 from .searchmanager import SearchManager, Section
 from .strategy import DocumentAction, SearchInfo, Strategy
+import os
 
 logger = logging.getLogger("scripts")
 
@@ -51,9 +56,13 @@ class FileStrategy(Strategy):
         search_analyzer_name: Optional[str] = None,
         use_acls: bool = False,
         category: Optional[str] = None,
+        use_content_understanding: bool = False,
+        content_understanding_endpoint: Optional[str] = None,
+        cosmos_manager: Optional[CosmosStatusManager] = None,
     ):
         self.list_file_strategy = list_file_strategy
         self.blob_manager = blob_manager
+        self.cosmos_manager = cosmos_manager
         self.file_processors = file_processors
         self.document_action = document_action
         self.embeddings = embeddings
@@ -62,6 +71,8 @@ class FileStrategy(Strategy):
         self.search_info = search_info
         self.use_acls = use_acls
         self.category = category
+        self.use_content_understanding = use_content_understanding
+        self.content_understanding_endpoint = content_understanding_endpoint
 
     async def setup(self):
         search_manager = SearchManager(
@@ -73,6 +84,16 @@ class FileStrategy(Strategy):
             search_images=self.image_embeddings is not None,
         )
         await search_manager.create_index()
+
+        if self.use_content_understanding:
+            if self.content_understanding_endpoint is None:
+                raise ValueError("Content Understanding is enabled but no endpoint was provided")
+            if isinstance(self.search_info.credential, AzureKeyCredential):
+                raise ValueError(
+                    "AzureKeyCredential is not supported for Content Understanding, use keyless auth instead"
+                )
+            cu_manager = ContentUnderstandingDescriber(self.content_understanding_endpoint, self.search_info.credential)
+            await cu_manager.create_analyzer()
 
     async def run(self):
         search_manager = SearchManager(
@@ -88,7 +109,19 @@ class FileStrategy(Strategy):
                         blob_image_embeddings: Optional[List[List[float]]] = None
                         if self.image_embeddings and blob_sas_uris:
                             blob_image_embeddings = await self.image_embeddings.create_embeddings(blob_sas_uris)
-                        await search_manager.update_content(sections, blob_image_embeddings, url=file.url)
+                        chunk_ids = await search_manager.update_content(sections, blob_image_embeddings, url=file.url)
+
+                        # log the chunk ids to cosmos
+
+                        if self.cosmos_manager:
+                            await self.cosmos_manager.log_file_indexed(
+                                file_id=file.filename_to_id(),
+                                chunk_ids=chunk_ids,
+                                filename=os.path.basename(file.filename()),
+                                sourcefile=file.filename(),
+                                category=self.category,
+                                pages=len(sections),
+                            )
                 except Exception as e:
                     logger.error("Error, file named %s failed: %s", file.filename(), str(e))
                     raise
@@ -98,8 +131,11 @@ class FileStrategy(Strategy):
         elif self.document_action == DocumentAction.Remove:
             paths = self.list_file_strategy.list_paths()
             async for path in paths:
-                await self.blob_manager.remove_blob(path)
+                logger.info("Removing file %s", path)
+                await self.blob_manager.remove_blob(os.path.basename(path))
                 await search_manager.remove_content(path)
+                if self.cosmos_manager:
+                    await self.cosmos_manager.log_file_removed(path)
         elif self.document_action == DocumentAction.RemoveAll:
             await self.blob_manager.remove_blob()
             await search_manager.remove_content()
