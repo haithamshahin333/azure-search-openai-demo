@@ -1,0 +1,121 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "HTTP_-_Remove_API_Call": {
+                "type": "Http",
+                "inputs": {
+                    "uri": "@parameters('index_api_endpoint')",
+                    "method": "POST",
+                    "body": {
+                        "bloburl": "@body('Get_blob_metadata_using_path')?['blobFullPathWithContainer']",
+                        "action": "remove",
+                        "category": "@triggerBody()?['category']"
+                    }
+                },
+                "runAfter": {
+                    "Delete_a_blob": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "runtimeConfiguration": {
+                    "contentTransfer": {
+                        "transferMode": "Chunked"
+                    }
+                }
+            },
+            "Delete_a_blob": {
+                "type": "ServiceProvider",
+                "inputs": {
+                    "parameters": {
+                        "containerName": "@parameters('blob_container_name')",
+                        "blobName": "@triggerBody()?['blobFilePath']"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "AzureBlob-1",
+                        "operationId": "deleteBlob",
+                        "serviceProviderId": "/serviceProviders/AzureBlob"
+                    }
+                },
+                "runAfter": {
+                    "Get_blob_metadata_using_path": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Get_blob_metadata_using_path": {
+                "type": "ServiceProvider",
+                "inputs": {
+                    "parameters": {
+                        "containerName": "@parameters('blob_container_name')",
+                        "blobName": "@triggerBody()?['blobFilePath']"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "AzureBlob-1",
+                        "operationId": "getBlobMetadata",
+                        "serviceProviderId": "/serviceProviders/AzureBlob"
+                    }
+                },
+                "runAfter": {}
+            },
+            "Delete_a_blob_from_Content": {
+                "type": "ServiceProvider",
+                "inputs": {
+                    "parameters": {
+                        "containerName": "@parameters('blob_container_content')",
+                        "blobName": "@last(split(triggerBody()?['blobFilePath'],'/'))"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "AzureBlob-1",
+                        "operationId": "deleteBlob",
+                        "serviceProviderId": "/serviceProviders/AzureBlob"
+                    }
+                },
+                "runAfter": {
+                    "HTTP_-_Remove_API_Call": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Response_-_Deleted": {
+                "type": "Response",
+                "kind": "Http",
+                "inputs": {
+                    "statusCode": 200,
+                    "body": {
+                        "blob-main-deletion": true,
+                        "blob-content-deletion": true,
+                        "index-deletion": true
+                    }
+                },
+                "runAfter": {
+                    "Delete_a_blob_from_Content": [
+                        "SUCCEEDED"
+                    ]
+                }
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "triggers": {
+            "When_a_HTTP_request_is_received": {
+                "type": "Request",
+                "kind": "Http",
+                "inputs": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "blobFilePath": {
+                                "type": "string"
+                            },
+                            "category": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "kind": "Stateful"
+}

@@ -1,0 +1,139 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Get_file_content": {
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "referenceName": "sharepointonline"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/datasets/@{encodeURIComponent(encodeURIComponent(parameters('sharepoint_site_address')))}/files/@{encodeURIComponent(triggerBody()?['identifier'])}/content",
+                    "queries": {
+                        "inferContentType": true
+                    }
+                },
+                "runAfter": {}
+            },
+            "Create_Blob_in_Mirror": {
+                "type": "ServiceProvider",
+                "inputs": {
+                    "parameters": {
+                        "containerName": "@parameters('blob_container_name')",
+                        "blobName": "@{concat('/',replace(parameters('sharepoint_site_address'),'https://',''))}/@{triggerBody()?['fullpath']}",
+                        "content": "@body('Get_file_content')",
+                        "overrideIfExists": "false"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "AzureBlob-1",
+                        "operationId": "uploadBlob",
+                        "serviceProviderId": "/serviceProviders/AzureBlob"
+                    }
+                },
+                "runAfter": {
+                    "Compose_BlobUrl": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Create_Blob_in_Content": {
+                "type": "ServiceProvider",
+                "inputs": {
+                    "parameters": {
+                        "containerName": "@parameters('blob_container_content')",
+                        "blobName": "@body('Create_Blob_in_Mirror')?['properties']?['blobName']",
+                        "content": "@body('Get_file_content')",
+                        "overrideIfExists": "false"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "AzureBlob-1",
+                        "operationId": "uploadBlob",
+                        "serviceProviderId": "/serviceProviders/AzureBlob"
+                    }
+                },
+                "runAfter": {
+                    "Create_Blob_in_Mirror": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Response": {
+                "type": "Response",
+                "kind": "Http",
+                "inputs": {
+                    "statusCode": 200,
+                    "body": {
+                        "create-blob": "@body('Create_Blob_in_Mirror')",
+                        "create-blob-content": "@body('Create_Blob_in_Content')",
+                        "index": true
+                    }
+                },
+                "runAfter": {
+                    "HTTP_-_Index": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "HTTP_-_Index": {
+                "type": "Http",
+                "inputs": {
+                    "uri": "@parameters('index_api_endpoint')",
+                    "method": "POST",
+                    "body": {
+                        "bloburl": "@outputs('Compose_BlobUrl')",
+                        "action": "add",
+                        "category": "@triggerBody()?['category']"
+                    }
+                },
+                "runAfter": {
+                    "Create_Blob_in_Content": [
+                        "SUCCEEDED"
+                    ]
+                },
+                "runtimeConfiguration": {
+                    "contentTransfer": {
+                        "transferMode": "Chunked"
+                    }
+                }
+            },
+            "Compose_BlobUrl": {
+                "type": "Compose",
+                "inputs": "https://@{parameters('storage_account_name')}.blob.core.windows.net/@{parameters('blob_container_name')}@{concat('/',replace(parameters('sharepoint_site_address'),'https://',''))}/@{triggerBody()?['fullpath']}",
+                "runAfter": {
+                    "Get_file_content": [
+                        "SUCCEEDED"
+                    ]
+                }
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "triggers": {
+            "When_a_HTTP_request_is_received": {
+                "type": "Request",
+                "kind": "Http",
+                "inputs": {
+                    "method": "POST",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "identifier": {
+                                "type": "string"
+                            },
+                            "fullpath": {
+                                "type": "string"
+                            },
+                            "category": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "kind": "Stateful"
+}

@@ -1,0 +1,143 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Get_blob_metadata_using_path": {
+                "type": "ServiceProvider",
+                "inputs": {
+                    "parameters": {
+                        "containerName": "@parameters('blob_container_name')",
+                        "blobName": "@{concat('/',replace(parameters('sharepoint_site_address'),'https://',''))}/@{triggerBody()?['fullpath']}"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "AzureBlob-1",
+                        "operationId": "getBlobMetadata",
+                        "serviceProviderId": "/serviceProviders/AzureBlob"
+                    }
+                },
+                "runAfter": {
+                    "Get_file_properties": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Get_file_properties": {
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "referenceName": "sharepointonline"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/datasets/@{encodeURIComponent(encodeURIComponent(parameters('sharepoint_site_address')))}/tables/@{encodeURIComponent(encodeURIComponent(parameters('sharepoint_document_library')))}/items/@{encodeURIComponent(triggerBody()?['id'])}/getfileitem"
+                },
+                "runAfter": {}
+            },
+            "If_File_in_Blob_is_Stale": {
+                "type": "If",
+                "expression": {
+                    "and": [
+                        {
+                            "equals": [
+                                "@greater(ticks(body('Get_file_properties')?['Modified']),ticks(body('Get_blob_metadata_using_path')?['lastModified']))",
+                                true
+                            ]
+                        }
+                    ]
+                },
+                "actions": {
+                    "Response_-_Updated": {
+                        "type": "Response",
+                        "kind": "Http",
+                        "inputs": {
+                            "statusCode": 200,
+                            "body": "@body('Sync_and_Index')"
+                        },
+                        "runAfter": {
+                            "Sync_and_Index": [
+                                "SUCCEEDED"
+                            ]
+                        }
+                    },
+                    "Sync_and_Index": {
+                        "type": "Workflow",
+                        "inputs": {
+                            "host": {
+                                "workflow": {
+                                    "id": "index-and-sync-child"
+                                }
+                            },
+                            "body": {
+                                "identifier": "@body('Get_file_properties')?['{Identifier}']",
+                                "fullpath": "@triggerBody()?['fullpath']",
+                                "category": "@triggerBody()?['category']"
+                            }
+                        },
+                        "runAfter": {
+                            "Remove_Stale_File_and_Data": [
+                                "SUCCEEDED"
+                            ]
+                        }
+                    },
+                    "Remove_Stale_File_and_Data": {
+                        "type": "Workflow",
+                        "inputs": {
+                            "host": {
+                                "workflow": {
+                                    "id": "remove-index-and-sync-child"
+                                }
+                            },
+                            "body": {
+                                "blobFilePath": "@body('Get_blob_metadata_using_path')?['name']",
+                                "category": "@triggerBody()?['category']"
+                            }
+                        }
+                    }
+                },
+                "else": {
+                    "actions": {
+                        "Response_-_No_Change": {
+                            "type": "Response",
+                            "kind": "Http",
+                            "inputs": {
+                                "statusCode": 200
+                            }
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Get_blob_metadata_using_path": [
+                        "SUCCEEDED"
+                    ]
+                }
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "triggers": {
+            "When_a_HTTP_request_is_received": {
+                "type": "Request",
+                "kind": "Http",
+                "inputs": {
+                    "method": "POST",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "fullpath": {
+                                "type": "string"
+                            },
+                            "category": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "kind": "Stateful"
+}

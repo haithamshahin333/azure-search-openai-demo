@@ -1,0 +1,109 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Get_file_metadata_using_path": {
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "referenceName": "sharepointonline"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/datasets/@{encodeURIComponent(encodeURIComponent(parameters('sharepoint_site_address')))}/GetFileByPath",
+                    "queries": {
+                        "path": "@triggerBody()?['sharepointFilePath']",
+                        "queryParametersSingleEncoded": true
+                    }
+                },
+                "runAfter": {}
+            },
+            "If_File_Not_Found_(404_status)": {
+                "type": "If",
+                "expression": {
+                    "and": [
+                        {
+                            "equals": [
+                                "@body('Get_file_metadata_using_path')?['status']",
+                                404
+                            ]
+                        }
+                    ]
+                },
+                "actions": {
+                    "Response_-_Deleted": {
+                        "type": "Response",
+                        "kind": "Http",
+                        "inputs": {
+                            "statusCode": 200,
+                            "body": "@body('Remove_from_Index_and_Blob')"
+                        },
+                        "runAfter": {
+                            "Remove_from_Index_and_Blob": [
+                                "SUCCEEDED"
+                            ]
+                        }
+                    },
+                    "Remove_from_Index_and_Blob": {
+                        "type": "Workflow",
+                        "inputs": {
+                            "host": {
+                                "workflow": {
+                                    "id": "remove-index-and-sync-child"
+                                }
+                            },
+                            "body": {
+                                "blobFilePath": "@triggerBody()?['blobFilePath']",
+                                "category": "@triggerBody()?['category']"
+                            }
+                        }
+                    }
+                },
+                "else": {
+                    "actions": {
+                        "Response_-_No_Change": {
+                            "type": "Response",
+                            "kind": "Http",
+                            "inputs": {
+                                "statusCode": 200
+                            }
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Get_file_metadata_using_path": [
+                        "SUCCEEDED",
+                        "FAILED"
+                    ]
+                }
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "triggers": {
+            "When_a_HTTP_request_is_received": {
+                "type": "Request",
+                "kind": "Http",
+                "inputs": {
+                    "method": "POST",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "sharepointFilePath": {
+                                "type": "string"
+                            },
+                            "blobFilePath": {
+                                "type": "string"
+                            },
+                            "category": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "kind": "Stateful"
+}

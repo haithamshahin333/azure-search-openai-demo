@@ -1,0 +1,35 @@
+{
+    "blob_container_content": {
+        "type": "String",
+        "value": "CONTENT"
+    },
+    "blob_container_name": {
+        "type": "String",
+        "value": "INGEST"
+    },
+    "index_api_endpoint": {
+        "type": "String",
+        "value": "INGEST-API-ENDPOINT"
+    },
+    "sharepoint_category_folders": {
+        "type": "Array",
+        "value": [
+            {
+                "category": "CATEGORY-NAME",
+                "folder": "ROOT/SHAREPOINT/FOLDER/NAME"
+            }
+        ]
+    },
+    "sharepoint_document_library": {
+        "type": "String",
+        "value": "Documents"
+    },
+    "sharepoint_site_address": {
+        "type": "String",
+        "value": "https://SHAREPOINT-DOMAIN-NAME.sharepoint.com/sites/SITENAME"
+    },
+    "storage_account_name": {
+        "type": "String",
+        "value": "STORAGE-ACCOUNT-NAME"
+    }
+}
