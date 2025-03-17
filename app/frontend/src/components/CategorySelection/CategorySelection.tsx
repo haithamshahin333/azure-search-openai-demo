@@ -40,6 +40,7 @@ interface CategorySelectionProps {
 export const CategorySelection = ({ selectedCategory, onCategoryChange }: CategorySelectionProps) => {
     const { t } = useTranslation();
     const categories = t("labels.includeCategoryOptions", { returnObjects: true });
+    const selectedCategories = selectedCategory.split(";").filter(c => c);
 
     return (
         <div className={styles.container}>
@@ -48,7 +49,11 @@ export const CategorySelection = ({ selectedCategory, onCategoryChange }: Catego
                     {t("labels.includeCategory")}
                 </Text>
                 {Object.entries(categories).map(([key, value]) => (
-                    <div key={key} className={`${styles.row} ${selectedCategory === key ? styles.selectedRow : ""}`} onClick={() => onCategoryChange(key)}>
+                    <div
+                        key={key}
+                        className={`${styles.row} ${selectedCategories.includes(key) ? styles.selectedRow : ""}`}
+                        onClick={() => onCategoryChange(key)}
+                    >
                         <Text>{value}</Text>
                     </div>
                 ))}
