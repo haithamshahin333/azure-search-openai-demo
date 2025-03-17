@@ -280,8 +280,10 @@ const Chat = () => {
     }, []);
 
     const handleCategoryChange = (category: string) => {
-        setIncludeCategory(category);
-        setIsCategorySelectionOpen(false);
+        setIncludeCategory(prev => {
+            const categories = prev.split(";").filter(c => c);
+            return categories.includes(category) ? categories.filter(c => c !== category).join(";") : [...categories, category].join(";");
+        });
     };
 
     useEffect(() => chatMessageStreamEnd.current?.scrollIntoView({ behavior: "smooth" }), [isLoading]);
@@ -406,7 +408,9 @@ const Chat = () => {
             </Helmet>
             <div className={styles.commandsSplitContainer}>
                 <Text variant="large" className={styles.selectedCategoryText}>
-                    Knowledge Base: <b>{t(`labels.includeCategoryOptions.${includeCategory}`)}</b>
+                    Knowledge Base: {includeCategory.split(";").map((category, index) => (
+                        <b key={index}>{t(`labels.includeCategoryOptions.${category}`)} </b>
+                    ))}
                 </Text>
                 <div className={styles.commandsContainer}>
                     {((useLogin && showChatHistoryCosmos) || showChatHistoryBrowser) && (

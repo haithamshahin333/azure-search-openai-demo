@@ -130,7 +130,10 @@ class Approach(ABC):
         security_filter = self.auth_helper.build_security_filters(overrides, auth_claims)
         filters = []
         if include_category:
-            filters.append("category eq '{}'".format(include_category.replace("'", "''")))
+            include_categories = include_category.split(";")
+            filters.append(
+                " or ".join("category eq '{}'".format(cat.replace("'", "''")) for cat in include_categories)
+            )
         if exclude_category:
             filters.append("category ne '{}'".format(exclude_category.replace("'", "''")))
         if security_filter:
