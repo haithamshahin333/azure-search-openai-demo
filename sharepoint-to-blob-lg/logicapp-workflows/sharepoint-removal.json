@@ -133,6 +133,11 @@
                             "List_all_the_blob_directories_in_CurrentFolder": [
                                 "SUCCEEDED"
                             ]
+                        },
+                        "runtimeConfiguration": {
+                            "concurrency": {
+                                "repetitions": 1
+                            }
                         }
                     },
                     "Until_Empty_PageMarker": {
@@ -194,6 +199,11 @@
                                     "Set_PageMarker": [
                                         "SUCCEEDED"
                                     ]
+                                },
+                                "runtimeConfiguration": {
+                                    "concurrency": {
+                                        "repetitions": 1
+                                    }
                                 }
                             }
                         },

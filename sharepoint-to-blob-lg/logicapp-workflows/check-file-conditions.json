@@ -1,0 +1,145 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Check_whether_blob_exists_in_main_container": {
+                "type": "ServiceProvider",
+                "inputs": {
+                    "parameters": {
+                        "containerName": "@parameters('blob_container_name')",
+                        "blobName": "@triggerBody()?['blobName']"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "AzureBlob-1",
+                        "operationId": "blobExists",
+                        "serviceProviderId": "/serviceProviders/AzureBlob"
+                    }
+                },
+                "runAfter": {}
+            },
+            "Check_whether_blob_exists_in_content": {
+                "type": "ServiceProvider",
+                "inputs": {
+                    "parameters": {
+                        "containerName": "@parameters('blob_container_content')",
+                        "blobName": "@last(split(triggerBody()?['blobName'],'/'))"
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "AzureBlob-1",
+                        "operationId": "blobExists",
+                        "serviceProviderId": "/serviceProviders/AzureBlob"
+                    }
+                },
+                "runAfter": {
+                    "Check_whether_blob_exists_in_main_container": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Initialize_file_status": {
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "status",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Check_whether_blob_exists_in_content": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Query_items": {
+                "type": "ServiceProvider",
+                "inputs": {
+                    "parameters": {
+                        "databaseId": "@parameters('cosmos_database_name')",
+                        "containerId": "@parameters('cosmos_container_name')",
+                        "queryText": "SELECT * FROM c\nwhere c.SOURCEFILE = \"@{triggerBody()?['blobName']}\""
+                    },
+                    "serviceProviderConfiguration": {
+                        "connectionName": "AzureCosmosDB",
+                        "operationId": "QueryDocuments",
+                        "serviceProviderId": "/serviceProviders/AzureCosmosDB"
+                    }
+                },
+                "runAfter": {
+                    "Initialize_file_status": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Set_file_status": {
+                "type": "SetVariable",
+                "inputs": {
+                    "name": "status",
+                    "value": "@first(body('Query_items')?['items'])?['CURRENT_STATUS']"
+                },
+                "runAfter": {
+                    "Query_items": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Response": {
+                "type": "Response",
+                "kind": "Http",
+                "inputs": {
+                    "statusCode": 200,
+                    "body": {
+                        "mainBlob": "@body('Check_whether_blob_exists_in_main_container')?['isBlobExists']",
+                        "contentBlob": "@body('Check_whether_blob_exists_in_content')?['isBlobExists']",
+                        "cosmosCount": "@body('Query_items')?['count']",
+                        "itemStatus": "@variables('status')",
+                        "conflictingFileName": "@variables('isConflictingFileName')"
+                    }
+                },
+                "runAfter": {
+                    "Check_for_Filename_Conflict": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Check_for_Filename_Conflict": {
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "isConflictingFileName",
+                            "type": "boolean",
+                            "value": "@and(body('Check_whether_blob_exists_in_content')?['isBlobExists'],not(body('Check_whether_blob_exists_in_main_container')?['isBlobExists']))"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Set_file_status": [
+                        "SUCCEEDED"
+                    ]
+                }
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "triggers": {
+            "When_a_HTTP_request_is_received": {
+                "type": "Request",
+                "kind": "Http",
+                "inputs": {
+                    "method": "POST",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "blobName": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "kind": "Stateful"
+}

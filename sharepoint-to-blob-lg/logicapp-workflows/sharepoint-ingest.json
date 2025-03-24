@@ -36,7 +36,7 @@
             },
             "Until": {
                 "type": "Until",
-                "expression": "@equals(variables('LoopIndex'),sub(length(variables('UncrawledFolders')), 1))",
+                "expression": "@or(equals(sub(length(variables('UncrawledFolders')), 1),variables('LoopIndex')),not(empty(variables('ErrorFiles'))))",
                 "limit": {
                     "count": 5000,
                     "timeout": "PT24H"
@@ -98,27 +98,25 @@
                                 },
                                 "else": {
                                     "actions": {
-                                        "Check_whether_blob_exists": {
-                                            "type": "ServiceProvider",
-                                            "inputs": {
-                                                "parameters": {
-                                                    "containerName": "@parameters('blob_container_name')",
-                                                    "blobName": "@{concat('/',replace(parameters('sharepoint_site_address'),'https://',''))}/@{item()?['{FullPath}']}"
-                                                },
-                                                "serviceProviderConfiguration": {
-                                                    "connectionName": "AzureBlob-1",
-                                                    "operationId": "blobExists",
-                                                    "serviceProviderId": "/serviceProviders/AzureBlob"
-                                                }
-                                            }
-                                        },
-                                        "If_Blob_Exists": {
+                                        "If_Blob_Exists_and_Indexed": {
                                             "type": "If",
                                             "expression": {
                                                 "and": [
                                                     {
                                                         "equals": [
-                                                            "@body('Check_whether_blob_exists')?['isBlobExists']",
+                                                            "@body('Parse_JSON')?['mainBlob']",
+                                                            true
+                                                        ]
+                                                    },
+                                                    {
+                                                        "equals": [
+                                                            "@body('Parse_JSON')?['itemStatus']",
+                                                            "INDEXED"
+                                                        ]
+                                                    },
+                                                    {
+                                                        "equals": [
+                                                            "@body('Parse_JSON')?['contentBlob']",
                                                             true
                                                         ]
                                                     }
@@ -143,25 +141,95 @@
                                             },
                                             "else": {
                                                 "actions": {
-                                                    "Index_and_Sync": {
-                                                        "type": "Workflow",
-                                                        "inputs": {
-                                                            "host": {
-                                                                "workflow": {
-                                                                    "id": "index-and-sync-child"
+                                                    "If_not_exists_and_not_indexed": {
+                                                        "type": "If",
+                                                        "expression": {
+                                                            "and": [
+                                                                {
+                                                                    "equals": [
+                                                                        "@and(not(body('Parse_JSON')?['mainBlob']),not(body('Parse_JSON')?['contentBlob']),equals(0,body('Parse_JSON')?['cosmosCount']))",
+                                                                        true
+                                                                    ]
                                                                 }
-                                                            },
-                                                            "body": {
-                                                                "identifier": "@item()?['{Identifier}']",
-                                                                "fullpath": "@item()?['{FullPath}']",
-                                                                "category": "@triggerBody()?['category']"
+                                                            ]
+                                                        },
+                                                        "actions": {
+                                                            "Index_and_Sync": {
+                                                                "type": "Workflow",
+                                                                "inputs": {
+                                                                    "host": {
+                                                                        "workflow": {
+                                                                            "id": "index-and-sync-child"
+                                                                        }
+                                                                    },
+                                                                    "body": {
+                                                                        "identifier": "@item()?['{Identifier}']",
+                                                                        "fullpath": "@item()?['{FullPath}']",
+                                                                        "category": "@triggerBody()?['category']"
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        "else": {
+                                                            "actions": {
+                                                                "Append_to_Error_Files": {
+                                                                    "type": "AppendToArrayVariable",
+                                                                    "inputs": {
+                                                                        "name": "ErrorFiles",
+                                                                        "value": "@item()?['{FullPath}']"
+                                                                    }
+                                                                }
                                                             }
                                                         }
                                                     }
                                                 }
                                             },
                                             "runAfter": {
-                                                "Check_whether_blob_exists": [
+                                                "Parse_JSON": [
+                                                    "SUCCEEDED"
+                                                ]
+                                            }
+                                        },
+                                        "Check_File_Conditions": {
+                                            "type": "Workflow",
+                                            "inputs": {
+                                                "host": {
+                                                    "workflow": {
+                                                        "id": "check-file-conditions"
+                                                    }
+                                                },
+                                                "body": {
+                                                    "blobName": "@{concat('/',replace(parameters('sharepoint_site_address'),'https://',''))}/@{item()?['{FullPath}']}"
+                                                }
+                                            }
+                                        },
+                                        "Parse_JSON": {
+                                            "type": "ParseJson",
+                                            "inputs": {
+                                                "content": "@body('Check_File_Conditions')",
+                                                "schema": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "mainBlob": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "contentBlob": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "cosmosCount": {
+                                                            "type": "integer"
+                                                        },
+                                                        "itemStatus": {
+                                                            "type": "string"
+                                                        },
+                                                        "conflictingFileName": {
+                                                            "type": "boolean"
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "runAfter": {
+                                                "Check_File_Conditions": [
                                                     "SUCCEEDED"
                                                 ]
                                             }
@@ -174,11 +242,16 @@
                             "Get_files_(properties_only)": [
                                 "SUCCEEDED"
                             ]
+                        },
+                        "runtimeConfiguration": {
+                            "concurrency": {
+                                "repetitions": 1
+                            }
                         }
                     }
                 },
                 "runAfter": {
-                    "Initialize_LoopIndex": [
+                    "Initialize_ErrorFiles": [
                         "SUCCEEDED"
                     ]
                 }
@@ -191,6 +264,23 @@
                 },
                 "runAfter": {
                     "Until": [
+                        "SUCCEEDED"
+                    ]
+                }
+            },
+            "Initialize_ErrorFiles": {
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "ErrorFiles",
+                            "type": "array",
+                            "value": []
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Initialize_LoopIndex": [
                         "SUCCEEDED"
                     ]
                 }
