@@ -1,22 +1,30 @@
 {
     "blob_container_content": {
         "type": "String",
-        "value": "CONTENT"
+        "value": "CONTENT-CONTAINER"
     },
     "blob_container_name": {
         "type": "String",
-        "value": "INGEST"
+        "value": "BLOB-CONTAINER"
+    },
+    "cosmos_container_name": {
+        "type": "String",
+        "value": "CONTAINERNAME"
+    },
+    "cosmos_database_name": {
+        "type": "String",
+        "value": "DBNAME"
     },
     "index_api_endpoint": {
         "type": "String",
-        "value": "INGEST-API-ENDPOINT"
+        "value": "API ENDPOINT"
     },
     "sharepoint_category_folders": {
         "type": "Array",
         "value": [
             {
-                "category": "CATEGORY-NAME",
-                "folder": "ROOT/SHAREPOINT/FOLDER/NAME"
+                "category": "CATEGORY",
+                "folder": "SHAREPOINT CATEGORY ROOT FOLDER"
             }
         ]
     },
@@ -26,10 +34,10 @@
     },
     "sharepoint_site_address": {
         "type": "String",
-        "value": "https://SHAREPOINT-DOMAIN-NAME.sharepoint.com/sites/SITENAME"
+        "value": "SITE"
     },
     "storage_account_name": {
         "type": "String",
-        "value": "STORAGE-ACCOUNT-NAME"
+        "value": "STG-ACCOUNT"
     }
 }
