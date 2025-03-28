@@ -7,6 +7,10 @@ import logging
 from dotenv import load_dotenv
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+import uuid
+import os
+from azure.cosmos import CosmosClient, exceptions
+from azure.identity import DefaultAzureCredential  # new import
 
 from opentelemetry import trace
 
@@ -20,13 +24,37 @@ OpenAIInstrumentor().instrument()
 from prepdocs import process_documents
 
 app = FastAPI()
-logger = logging.getLogger("api_prepdocs")
+logger = logging.getLogger("scripts")
 logger.setLevel(logging.DEBUG)
+
+# Initialize Cosmos DB client using provided environment variables
+cosmos_endpoint = os.getenv("AZURE_COSMOS_ENDPOINT")
+# Remove cosmos_key variable and use credential instead
+credential = DefaultAzureCredential()
+cosmos_database = os.getenv("AZURE_COSMOS_DATABASE")
+cosmos_container_name = os.getenv("AZURE_COSMOS_OPERATIONS_CONTAINER")
+client = CosmosClient(cosmos_endpoint, credential=credential)
+db = client.get_database_client(cosmos_database)
+container = db.get_container_client(cosmos_container_name)
 
 class DocumentProcessRequest(BaseModel):
     bloburl: str
     action: str
     category: str | None = None
+
+async def process_wrapper(args, op_id):
+    try:
+        await process_documents(args)
+        # Update cosmos doc status to succeeded
+        doc = container.read_item(item=op_id, partition_key=op_id)
+        doc["status"] = "succeeded"
+        container.upsert_item(doc)
+    except Exception as e:
+        # Update cosmos doc status to failed with error message
+        doc = container.read_item(item=op_id, partition_key=op_id)
+        doc["status"] = "failed"
+        doc["error"] = str(e)
+        container.upsert_item(doc)
 
 @app.post("/api/process-documents")
 async def api_process_documents(doc_request: DocumentProcessRequest):
@@ -73,17 +101,49 @@ async def api_process_documents(doc_request: DocumentProcessRequest):
         verbose=True
     )
 
+    op_id = str(uuid.uuid4())
+    # Create initial operation document in Cosmos DB with passed arguments and initial status
+    initial_doc = {
+        "id": op_id,
+        "operationid": op_id,
+        "status": "queued",
+        "args": vars(args)
+    }
+    container.create_item(initial_doc)
+
     with tracer.start_as_current_span("api_process_documents") as span:
         span.set_attribute("api_prepdocs.bloburl", bloburl)
         span.set_attribute("api_prepdocs.action", action)
         if category:
             span.set_attribute("api_prepdocs.category", category)
         try:
-            await process_documents(args)
-            return {"status": "success", "bloburl": bloburl, "action": action}
+            asyncio.create_task(process_wrapper(args, op_id))
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "status": "accepted",
+                    "bloburl": bloburl,
+                    "action": action,
+                    "location": f"/api/process-documents/status/{op_id}"
+                }
+            )
         except Exception as e:
-            logger.error(f"Error processing document: {e}")
+            logger.error(f"Error queuing document processing: {e}")
             return JSONResponse(
                 status_code=500,
                 content={"error": str(e)}
             )
+
+@app.get("/api/process-documents/status/{operationid}")
+async def get_status(operationid: str):
+    try:
+        doc = container.read_item(item=operationid, partition_key=operationid)
+        return JSONResponse(
+            status_code=200,
+            content={"operationid": operationid, "status": doc}
+        )
+    except exceptions.CosmosResourceNotFoundError:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Operation ID not found"}
+        )
