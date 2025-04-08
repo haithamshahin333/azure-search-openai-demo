@@ -282,7 +282,8 @@ const Chat = () => {
     const handleCategoryChange = (category: string) => {
         setIncludeCategory(prev => {
             const categories = prev.split(";").filter(c => c);
-            return categories.includes(category) ? categories.filter(c => c !== category).join(";") : [...categories, category].join(";");
+            const updatedCategories = categories.includes(category) ? categories.filter(c => c !== category) : [...categories, category];
+            return updatedCategories.length > 0 ? updatedCategories.join(";") : prev; // Ensure at least one category remains selected
         });
     };
 
@@ -408,8 +409,12 @@ const Chat = () => {
             </Helmet>
             <div className={styles.commandsSplitContainer}>
                 <Text variant="large" className={styles.selectedCategoryText}>
-                    Knowledge Base: {includeCategory.split(";").map((category, index) => (
-                        <b key={index}>{t(`labels.includeCategoryOptions.${category}`)} </b>
+                    Knowledge Base:{" "}
+                    {includeCategory.split(";").map((category, index) => (
+                        <span key={index}>
+                            {t(`labels.includeCategoryOptions.${category}`)}
+                            {index < includeCategory.split(";").length - 1 ? ", " : ""}
+                        </span>
                     ))}
                 </Text>
                 <div className={styles.commandsContainer}>
